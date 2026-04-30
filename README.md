@@ -37,7 +37,7 @@ Saat ini mendukung **Midtrans** (GoPay, ShopeePay, QRIS) dan **Offline** secara 
 ---
 
 ## Instalasi
-Sebelum menginstal Transaction Module, kamu harus membuat akun terlebih dahulu di : [sini](https://dikiakbarasyidiq.dev/auth/register). Setelah membuat akun buka halaman (Dashboard → Account) untuk melihat license key kamu.
+Sebelum menginstal Payment Module, kamu harus membuat akun terlebih dahulu di : [sini](https://dikiakbarasyidiq.dev/auth/register). Setelah membuat akun buka halaman (Dashboard → Account) untuk melihat license key kamu.
 
 Copy license key kamu lalu jalankan command ini :
 
