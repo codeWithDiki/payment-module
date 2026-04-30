@@ -36,7 +36,7 @@ class PaymentMethodForm
                             })
                             ->nullable(),
                         Select::make("vendor")
-                            ->options(PaymentVendor::class)
+                            ->options(config("payment-module.vendor_enum_class", PaymentVendor::class))
                             ->lazy()
                             ->required()
                             ->label("Vendor"),

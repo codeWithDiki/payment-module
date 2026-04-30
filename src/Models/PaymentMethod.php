@@ -11,20 +11,23 @@ class PaymentMethod extends \Illuminate\Database\Eloquent\Model
 {
     protected $guarded = [];
 
-    protected $casts = [
-        "meta_data" => "json",
-        "is_active" => "boolean",
-        "vendor" => PaymentVendor::class
-    ];
+    protected function casts(): array
+    {
+        return [
+            "meta_data" => "json",
+            "is_active" => "boolean",
+            "vendor" => config('payment-module.vendor_enum_class', PaymentVendor::class),
+        ];
+    }
 
     public function paymentMethodGroup() : \Illuminate\Database\Eloquent\Relations\BelongsTo
     {
-        return $this->belongsTo(PaymentMethodGroup::class, "payment_method_group_id");
+        return $this->belongsTo(config('payment-module.payment_method_group_class'), "payment_method_group_id");
     }
 
     public function payments() : HasMany
     {
-        return $this->hasMany(Payment::class);
+        return $this->hasMany(config('payment-module.payment_class'), "payment_method_id");
     }
 
     #[Scope]

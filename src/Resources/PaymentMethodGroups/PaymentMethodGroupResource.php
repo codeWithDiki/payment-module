@@ -26,6 +26,11 @@ class PaymentMethodGroupResource extends Resource
 
     protected static ?string $recordTitleAttribute = 'name';
 
+    public static function getModel() : string
+    {
+        return config('payment-module.payment_method_group_class', PaymentMethodGroup::class);
+    }
+
     public static function form(Schema $schema): Schema
     {
         return PaymentMethodGroupForm::configure($schema);

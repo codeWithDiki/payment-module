@@ -27,7 +27,7 @@ class Payment extends \Illuminate\Database\Eloquent\Model
 
     public function paymentMethod() : \Illuminate\Database\Eloquent\Relations\BelongsTo
     {
-        return $this->belongsTo(PaymentMethod::class);
+        return $this->belongsTo(config('payment-module.payment_method_class'), "payment_method_id");
     }
     
     #[Scope]

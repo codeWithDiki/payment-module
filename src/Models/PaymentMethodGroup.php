@@ -11,7 +11,7 @@ class PaymentMethodGroup extends \Illuminate\Database\Eloquent\Model
 
     public function paymentMethods() : \Illuminate\Database\Eloquent\Relations\HasMany
     {
-        return $this->hasMany(PaymentMethod::class, "payment_method_group_id");
+        return $this->hasMany(config('payment-module.payment_method_class'), "payment_method_group_id");
     }
 
     #[Scope]

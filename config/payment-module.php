@@ -1,6 +1,9 @@
 <?php
 
 // config for VendorName/Skeleton
+
+use CodeWithDiki\PaymentModule\Events\PaymentCreated;
+
 return [
     /** Models Classes */
     "payment_method_class" => \CodeWithDiki\PaymentModule\Models\PaymentMethod::class,
@@ -14,4 +17,17 @@ return [
     "midtrans_is_production" => env("MIDTRANS_IS_PRODUCTION", false),
     "midtrans_is_sanitized" => env("MIDTRANS_IS_SANITIZED", true),
     "midtrans_is_3ds" => env("MIDTRANS_IS_3DS", false),
+
+    "vendor_enum_class" => \CodeWithDiki\PaymentModule\Enums\PaymentVendor::class,
+
+    "webhook" => [
+        "prefix" => "webhooks",
+        "without_middleware" => [\Illuminate\Foundation\Http\Middleware\VerifyCsrfToken::class]
+    ],
+
+    "listeners" => [
+        PaymentCreated::class => [
+            \CodeWithDiki\PaymentModule\Listeners\ProcessingPaymentGateway::class
+        ]
+    ]
 ];

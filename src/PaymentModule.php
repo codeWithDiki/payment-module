@@ -19,7 +19,7 @@ class PaymentModule {
         
         $paymentMethod = $paymentMethodClass::isActive()->where("id", $paymentData->payment_method_id)->firstOrFail();
 
-        $payment = Payment::create([
+        $payment = config('payment-module.payment_class')::create([
             "paymentable_type" => get_class($paymentData->paymentable),
             "paymentable_id" => $paymentData->paymentable->id,
             "customer_name" => $paymentData->customer_name,
@@ -50,7 +50,8 @@ class PaymentModule {
         match($status)
         {
             PaymentStatus::PAID => Events\PaymentPaid::dispatch($payment),
-            PaymentStatus::FAILED => Events\PaymentFailed::dispatch($payment)
+            PaymentStatus::FAILED => Events\PaymentFailed::dispatch($payment),
+            default => null
         };
 
         return $payment;
@@ -58,8 +59,8 @@ class PaymentModule {
 
     public function webhookRoutes() : void
     {
-        Route::prefix("webhooks")
-        ->withoutMiddleware(VerifyCsrfToken::class)
+        Route::prefix(config('payment-module.webhook.prefix', 'webhooks'))
+        ->withoutMiddleware(config('payment-module.webhook.without_middleware', [VerifyCsrfToken::class]))
         ->group(function() {
             Route::post("midtrans", [Controllers\WebhookController::class, "midtrans"]);
         });

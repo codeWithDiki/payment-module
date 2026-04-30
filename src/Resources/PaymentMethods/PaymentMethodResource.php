@@ -26,6 +26,11 @@ class PaymentMethodResource extends Resource
 
     protected static ?string $recordTitleAttribute = 'name';
 
+    public static function getModel() : string
+    {
+        return config('payment-module.payment_method_class', PaymentMethod::class);
+    }
+
     public static function form(Schema $schema): Schema
     {
         return PaymentMethodForm::configure($schema);
