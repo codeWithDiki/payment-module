@@ -1,10 +1,5 @@
 # Payment Module untuk Laravel
 
-[![Latest Version on Packagist](https://img.shields.io/packagist/v/codewithdiki/payment-module.svg?style=flat-square)](https://packagist.org/packages/codewithdiki/payment-module)
-[![GitHub Tests Action Status](https://img.shields.io/github/actions/workflow/status/codewithdiki/payment-module/run-tests.yml?branch=main&label=tests&style=flat-square)](https://github.com/codewithdiki/payment-module/actions?query=workflow%3Arun-tests+branch%3Amain)
-[![GitHub Code Style Action Status](https://img.shields.io/github/actions/workflow/status/codewithdiki/payment-module/fix-php-code-style-issues.yml?branch=main&label=code%20style&style=flat-square)](https://github.com/codewithdiki/payment-module/actions?query=workflow%3A"Fix+PHP+code+style+issues"+branch%3Amain)
-[![Total Downloads](https://img.shields.io/packagist/dt/codewithdiki/payment-module.svg?style=flat-square)](https://packagist.org/packages/codewithdiki/payment-module)
-
 Membangun sistem pembayaran dari nol di setiap proyek Laravel itu melelahkan. Kamu harus menulis integrasi Midtrans sendiri, mengelola status transaksi, mengurus webhook, sampai membuat panel admin — semuanya berulang. **Payment Module** hadir untuk menghilangkan pekerjaan itu.
 
 Package ini adalah lapisan abstraksi di atas berbagai payment gateway. Kamu cukup panggil `PaymentModule::createPayment()`, dan semua proses di belakangnya — mulai dari charge ke gateway, menyimpan response, sampai men-dispatch event — ditangani secara otomatis. Arsitektur **event-driven** yang digunakan juga memastikan kamu tetap bisa menyesuaikan perilaku di setiap titik tanpa menyentuh kode inti package.
@@ -42,6 +37,33 @@ Saat ini mendukung **Midtrans** (GoPay, ShopeePay, QRIS) dan **Offline** secara 
 ---
 
 ## Instalasi
+Sebelum menginstal Transaction Module, kamu harus membuat akun terlebih dahulu di : [sini](https://dikiakbarasyidiq.dev/auth/register). Setelah membuat akun buka halaman (Dashboard → Account) untuk melihat license key kamu.
+
+Copy license key kamu lalu jalankan command ini :
+
+```bash
+composer config bearer.dikiakbarasyidiq.dev <license_key>
+```
+
+Setelah menjalankan command diatas, tambahkan repository berikut di file composer.json. (Jika Belum Ada)
+```
+{
+"repositories": [
+        {
+            "type" : "composer",
+            "url" : "https://dikiakbarasyidiq.dev"
+        }
+    ]
+}
+```
+
+Setelah menambahkan repository, update composer terlebih dahulu:
+
+```bash
+composer update
+```
+
+Lalu kamu akan bisa melakukan installasi via composer di project kamu dengan command :
 
 ```bash
 composer require codewithdiki/payment-module
