@@ -126,4 +126,11 @@ class PaymentModule {
             ->first();
     }
 
+    public function getActivePaymentMethodGroups() : \Illuminate\Database\Eloquent\Collection
+    {
+        $paymentMethodGroupClass = config("payment-module.payment_method_group_class");
+
+        return $paymentMethodGroupClass::with('paymentMethods')->isActive()->get();
+    }
+
 }
