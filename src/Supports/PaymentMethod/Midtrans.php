@@ -24,7 +24,13 @@ class Midtrans implements Contracts\PaymentProcessor
         return collect([
             "gopay" => "GoPay",
             "shopee_pay" => "ShopeePay",
-            "qris" => "QRIS"
+            "qris" => "QRIS",
+            "permata_va" => "Permata Virtual Account",
+            "bca_va" => "BCA Virtual Account",
+            "bni_va" => "BNI Virtual Account",
+            "bri_va" => "BRI Virtual Account",
+            "bsi_va" => "BSI Virtual Account",
+            "mandiri_va" => "Mandiri Virtual Account",
         ]);
     }
 
