@@ -44,6 +44,14 @@ class Midtrans implements Contracts\PaymentProcessor
             ]
         ];
 
+        if(!in_array($payment->paymentMethod->channel, ["gopay", "qris", "shopee_pay"]))
+        {
+            $transaction_details["payment_type"] = "bank_transfer";
+            $transaction_details["bank_transfer"] = [
+                "bank" => $payment->paymentMethod->channel
+            ];
+        }
+
         if($payment->paymentMethod->channel == "qris")
         {
             $transaction_details["qris"] = [
