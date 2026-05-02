@@ -36,4 +36,10 @@ class PaymentGatewayProcessed implements ShouldBroadcast
             new PrivateChannel('payment-gateway-processed'),
         ];
     }
+
+    public function broadcastAs(): string
+    {
+        return 'cwd.payment-module.payment-gateway-processed';
+    }
+
 }

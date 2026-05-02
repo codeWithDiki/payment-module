@@ -36,4 +36,10 @@ class PaymentPaid implements ShouldBroadcast
             new PrivateChannel('payment-paid'),
         ];
     }
+
+    public function broadcastAs(): string
+    {
+        return 'cwd.payment-module.payment-paid';
+    }
+
 }

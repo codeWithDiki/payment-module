@@ -36,4 +36,11 @@ class PaymentFailed implements ShouldBroadcast
             new PrivateChannel('payment-failed'),
         ];
     }
+
+    public function broadcastAs(): string
+    {
+        return 'cwd.payment-module.payment-failed';
+    }
+
+
 }
