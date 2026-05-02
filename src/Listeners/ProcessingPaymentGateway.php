@@ -6,8 +6,9 @@ use CodeWithDiki\PaymentModule\Events\PaymentCreated;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Queue\InteractsWithQueue;
 
-class ProcessingPaymentGateway
+class ProcessingPaymentGateway implements ShouldQueue
 {
+    use InteractsWithQueue;
     /**
      * Create the event listener.
      */

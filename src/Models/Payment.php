@@ -57,4 +57,13 @@ class Payment extends \Illuminate\Database\Eloquent\Model
         return null;
     }
 
+    public function getMidtransVirtualAccountNumber() : ?string
+    {
+        if($this->paymentMethod->vendor == \CodeWithDiki\PaymentModule\Enums\PaymentVendor::Midtrans) {
+            return (($this->payment_response['status_code'] ?? null) == 201) ? collect($this->payment_response['va_numbers'] ?? [])->firstWhere('bank', $this->paymentMethod->channel)['va_number'] : null;
+        }
+
+        return null;
+    }
+
 }
