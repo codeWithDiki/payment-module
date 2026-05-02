@@ -3,7 +3,7 @@
 namespace CodeWithDiki\PaymentModule\Controllers;
 
 use CodeWithDiki\PaymentModule\Enums\PaymentStatus;
-use CodeWithDiki\PaymentModule\Models\Payment;
+use CodeWithDiki\PaymentModule\Facades\PaymentModule;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
 
@@ -33,7 +33,7 @@ class WebhookController extends Controller
             default => null
         };
 
-        $transaction = Payment::query()->where("payment_code", $order_id)->first();
+        $transaction = config('payment-module.payment_class')::query()->where("payment_code", $order_id)->first();
 
         if (!$transaction) {
             return response()->json([
@@ -42,7 +42,7 @@ class WebhookController extends Controller
             ], 404);
         }
 
-        (new \CodeWithDiki\PaymentModule\PaymentModule())->setPaymentStatus($transaction, $transaction_status);
+        PaymentModule::setPaymentStatus($transaction, $transaction_status);
 
         return response()->json([
             "status" => "success"
