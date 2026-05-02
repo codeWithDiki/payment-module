@@ -60,6 +60,10 @@ class Payment extends \Illuminate\Database\Eloquent\Model
     public function getMidtransVirtualAccountNumber() : ?string
     {
         if($this->paymentMethod->vendor == \CodeWithDiki\PaymentModule\Enums\PaymentVendor::Midtrans) {
+            if($this->paymentMethod->channel == "permata") {
+                return (($this->payment_response['status_code'] ?? null) == 201) ? ($this->payment_response['permata_va_number'] ?? null) : null;
+            }
+
             return (($this->payment_response['status_code'] ?? null) == 201) ? (collect($this->payment_response['va_numbers'] ?? [])->firstWhere('bank', $this->paymentMethod->channel)['va_number'] ?? null) : null;
         }
 
