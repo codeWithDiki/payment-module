@@ -151,6 +151,7 @@ PaymentModule::createPaymentMethodGroup(new PaymentMethodGroupData(
     name: 'Dompet Digital',
     slug: 'dompet-digital',
     is_active: true,
+    image_url: 'https://cdn.example.com/dompet-digital.png', // opsional
 ));
 ```
 
@@ -166,6 +167,9 @@ PaymentModule::createPaymentMethod(new PaymentMethodData(
     vendor: PaymentVendor::Midtrans,
     channel: 'gopay',
     is_active: true,
+    image_url: 'https://cdn.example.com/gopay.png', // opsional
+    description: 'Bayar dengan GoPay',              // opsional
+    meta_data: null,                                 // opsional, disimpan sebagai JSON
 ));
 
 PaymentModule::createPaymentMethod(new PaymentMethodData(
@@ -187,8 +191,10 @@ PaymentModule::createPaymentMethod(new PaymentMethodData(
 
 | Vendor | Channel |
 |--------|---------|
-| `Midtrans` | `gopay`, `shopee_pay`, `qris` |
+| `Midtrans` | `gopay`, `shopee_pay`, `qris`, `permata`, `bca`, `bni`, `bri`, `bsi`, `mandiri` |
 | `Offline` | `bank_transfer`, `cstore`, `offline`, `offline_qris` |
+
+> Channel `permata`, `bca`, `bni`, `bri`, `bsi`, dan `mandiri` diproses sebagai **bank transfer** via Midtrans.
 
 ---
 
@@ -216,7 +222,7 @@ $payment = PaymentModule::createPayment(new PaymentData(
 ));
 ```
 
-Begitu `createPayment()` dipanggil, transaksi disimpan ke database lalu event `PaymentCreated` langsung di-dispatch. Listener `ProcessingPaymentGateway` yang berjalan secara sinkron akan memilih processor yang tepat berdasarkan vendor dan memanggil `processPayment()`.
+Begitu `createPayment()` dipanggil, transaksi disimpan ke database lalu event `PaymentCreated` langsung di-dispatch. Listener `ProcessingPaymentGateway` yang berjalan **secara asinkron via queue** (mengimplementasikan `ShouldQueue`) akan memilih processor yang tepat berdasarkan vendor dan memanggil `processPayment()`.
 
 ### Mengambil QR Code URL (khusus QRIS via Midtrans)
 
@@ -225,6 +231,16 @@ Setelah payment diproses, kamu bisa langsung ambil URL gambar QR Code untuk dita
 ```php
 $qrCodeUrl = $payment->getQrCodeUrl();
 // Mengembalikan URL string jika Midtrans merespons dengan status_code 201, atau null
+```
+
+### Mengambil Nomor Virtual Account (khusus Bank Transfer via Midtrans)
+
+Untuk metode bank transfer, kamu bisa mengambil nomor virtual account yang di-generate Midtrans:
+
+```php
+$vaNumber = $payment->getMidtransVirtualAccountNumber();
+// Mengembalikan nomor VA string jika Midtrans merespons dengan status_code 201, atau null
+// Channel yang digunakan (bca, bni, bri, dll.) dideteksi otomatis dari payment method
 ```
 
 ---
@@ -548,7 +564,9 @@ $payment->paymentMethod->vendor->getPaymentProcessorClass()
         ├── PaymentVendor::Midtrans → Midtrans::processPayment()
         │       ├── CoreApi::charge() ke Midtrans
         │       ├── Simpan response ke payment record
-        │       └── Dispatch PaymentGatewayProcessed
+        │       ├── Dispatch PaymentGatewayProcessed
+        │       ├── getQrCodeUrl()              → URL QR Code (QRIS, status_code 201)
+        │       └── getMidtransVirtualAccountNumber() → Nomor VA (bank transfer, status_code 201)
         │
         ├── PaymentVendor::Offline → Offline::processPayment()
         │       └── setPaymentStatus(PAID) → Dispatch PaymentPaid
@@ -579,6 +597,7 @@ $payment->paymentMethod->vendor->getPaymentProcessorClass()
 | `getPaymentByCode(string $code)` | `?Payment` | Cari pembayaran berdasarkan payment code |
 | `getPaymentMethodById(int $id)` | `?PaymentMethod` | Cari payment method berdasarkan ID |
 | `getActivePaymentMethods()` | `Collection` | Ambil semua payment method yang aktif |
+| `getActivePaymentMethodGroups()` | `Collection` | Ambil semua group yang aktif beserta payment method-nya |
 | `getPaymentMethodsByGroupId(int $group_id)` | `Collection` | Ambil payment method aktif dalam grup tertentu |
 | `getPaymentFromPaymentable(string $type, int $id)` | `?Payment` | Cari pembayaran berdasarkan model yang terkait |
 
@@ -596,6 +615,9 @@ $payment->paymentMethod->vendor->getPaymentProcessorClass()
 | `customer_phone` | `?string` | — | Nomor telepon pelanggan |
 | `customer_address` | `?string` | — | Alamat pelanggan |
 | `customer_custom_data` | `?array` | — | Data tambahan pelanggan (disimpan sebagai JSON) |
+| `payment_headers` | `?string` | — | Header HTTP yang dikirim ke gateway (disimpan sebagai JSON) |
+| `payment_payload` | `?string` | — | Payload request yang dikirim ke gateway (disimpan sebagai JSON) |
+| `payment_response` | `?string` | — | Response mentah dari gateway (disimpan sebagai JSON) |
 
 ---
 
