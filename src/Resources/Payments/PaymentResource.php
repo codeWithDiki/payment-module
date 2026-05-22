@@ -20,7 +20,7 @@ class PaymentResource extends Resource
 
     protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedCurrencyDollar;
 
-    protected static null|\UnitEnum|string $navigationGroup = 'Payment';
+    protected static null|\UnitEnum|string $navigationGroup = 'Payment Management';
 
     protected static ?string $recordTitleAttribute = 'payment_code';
 

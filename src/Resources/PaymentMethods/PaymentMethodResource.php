@@ -22,7 +22,7 @@ class PaymentMethodResource extends Resource
 
     protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedCreditCard;
     
-    protected static null|\UnitEnum|string $navigationGroup = 'Payment';
+    protected static null|\UnitEnum|string $navigationGroup = 'Payment Management';
 
     protected static ?string $recordTitleAttribute = 'name';
 
