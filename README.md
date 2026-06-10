@@ -4,7 +4,7 @@ Membangun sistem pembayaran dari nol di setiap proyek Laravel itu melelahkan. Ka
 
 Package ini adalah lapisan abstraksi di atas berbagai payment gateway. Kamu cukup panggil `PaymentModule::createPayment()`, dan semua proses di belakangnya — mulai dari charge ke gateway, menyimpan response, sampai men-dispatch event — ditangani secara otomatis. Arsitektur **event-driven** yang digunakan juga memastikan kamu tetap bisa menyesuaikan perilaku di setiap titik tanpa menyentuh kode inti package.
 
-Saat ini mendukung **Midtrans** (GoPay, ShopeePay, QRIS) dan **Offline** secara bawaan, dengan panel admin berbasis **Filament** yang siap pakai.
+Saat ini mendukung **Midtrans** (GoPay, ShopeePay, QRIS), **Stripe** (Checkout Session), dan **Offline** secara bawaan, dengan panel admin berbasis **Filament** yang siap pakai.
 
 ---
 
@@ -17,6 +17,7 @@ Saat ini mendukung **Midtrans** (GoPay, ShopeePay, QRIS) dan **Offline** secara 
 - [Membuat Pembayaran](#membuat-pembayaran)
 - [Menangani Status Pembayaran](#menangani-status-pembayaran)
 - [Webhook Midtrans](#webhook-midtrans)
+- [Webhook Stripe](#webhook-stripe)
 - [Integrasi Filament](#integrasi-filament)
 - [Menambah Vendor Baru dengan Enum Kustom](#menambah-vendor-baru-dengan-enum-kustom)
 - [Kustomisasi Lanjutan](#kustomisasi-lanjutan)
@@ -110,6 +111,15 @@ return [
     'midtrans_is_sanitized'  => env('MIDTRANS_IS_SANITIZED', true),
     'midtrans_is_3ds'        => env('MIDTRANS_IS_3DS', false),
 
+    // Stripe
+    'stripe_secret_key'      => env('STRIPE_SECRET_KEY', ''),
+    'stripe_publishable_key' => env('STRIPE_PUBLISHABLE_KEY', ''),
+    'stripe_webhook_secret'  => env('STRIPE_WEBHOOK_SECRET', ''),
+    'stripe_currency'        => env('STRIPE_CURRENCY', 'usd'),
+    // {payment_code} akan diganti dengan payment code transaksi
+    'stripe_success_url'     => env('STRIPE_SUCCESS_URL', ''),
+    'stripe_cancel_url'      => env('STRIPE_CANCEL_URL', ''),
+
     // Webhook
     'webhook' => [
         'prefix'             => 'webhooks',
@@ -131,6 +141,13 @@ Tambahkan ke `.env`:
 MIDTRANS_SERVER_KEY=your-server-key
 MIDTRANS_CLIENT_KEY=your-client-key
 MIDTRANS_IS_PRODUCTION=false
+
+STRIPE_SECRET_KEY=sk_test_xxx
+STRIPE_PUBLISHABLE_KEY=pk_test_xxx
+STRIPE_WEBHOOK_SECRET=whsec_xxx
+STRIPE_CURRENCY=usd
+STRIPE_SUCCESS_URL="https://domain-kamu.com/payments/{payment_code}/success"
+STRIPE_CANCEL_URL="https://domain-kamu.com/payments/{payment_code}/cancel"
 ```
 
 ---
@@ -192,6 +209,7 @@ PaymentModule::createPaymentMethod(new PaymentMethodData(
 | Vendor | Channel |
 |--------|---------|
 | `Midtrans` | `gopay`, `shopee_pay`, `qris`, `permata`, `bca`, `bni`, `bri`, `bsi`, `mandiri` |
+| `Stripe` | `card`, `link`, `alipay`, `wechat_pay` |
 | `Offline` | `bank_transfer`, `cstore`, `offline`, `offline_qris` |
 
 > Channel `permata`, `bca`, `bni`, `bri`, `bsi`, dan `mandiri` diproses sebagai **bank transfer** via Midtrans.
@@ -242,6 +260,19 @@ $vaNumber = $payment->getMidtransVirtualAccountNumber();
 // Mengembalikan nomor VA string jika Midtrans merespons dengan status_code 201, atau null
 // Channel yang digunakan (bca, bni, bri, dll.) dideteksi otomatis dari payment method
 ```
+
+### Mengambil URL Checkout (khusus Stripe)
+
+Untuk pembayaran via Stripe, processor membuat **Checkout Session** (halaman pembayaran hosted Stripe). Setelah payment diproses, redirect pelanggan ke URL checkout:
+
+```php
+$checkoutUrl = $payment->getStripeCheckoutUrl();
+// Mengembalikan URL hosted checkout Stripe, atau null jika vendor bukan Stripe
+
+return redirect()->away($checkoutUrl);
+```
+
+> Nominal `amount` otomatis dikonversi ke satuan terkecil currency (dikali 100, kecuali currency zero-decimal seperti `jpy`, `krw`, `vnd`).
 
 ---
 
@@ -309,6 +340,37 @@ Masukkan URL tersebut di dashboard Midtrans. Webhook handler bawaan akan secara 
 1. Memvalidasi signature SHA-512 dari payload
 2. Memetakan status Midtrans ke `PaymentStatus` (`settlement`/`capture` → `PAID`, `deny`/`expire`/`cancel` → `FAILED`)
 3. Memanggil `setPaymentStatus()` yang men-dispatch event terkait
+
+---
+
+## Webhook Stripe
+
+Sama seperti Midtrans, route webhook Stripe didaftarkan otomatis. Dengan konfigurasi default, endpoint-nya adalah:
+
+```
+POST https://domain-kamu.com/webhooks/stripe
+```
+
+Daftarkan URL tersebut di [Stripe Dashboard → Developers → Webhooks](https://dashboard.stripe.com/webhooks), lalu salin **signing secret**-nya ke env `STRIPE_WEBHOOK_SECRET`. Event yang perlu diaktifkan:
+
+- `checkout.session.completed`
+- `checkout.session.async_payment_succeeded`
+- `checkout.session.async_payment_failed`
+- `checkout.session.expired`
+
+Webhook handler bawaan akan secara otomatis:
+1. Memverifikasi signature `Stripe-Signature` menggunakan webhook secret
+2. Memetakan event ke `PaymentStatus` (`completed`/`async_payment_succeeded` → `PAID`, `expired`/`async_payment_failed` → `FAILED`)
+3. Mencari transaksi via `client_reference_id` (berisi `payment_code`)
+4. Memanggil `setPaymentStatus()` yang men-dispatch event terkait
+
+Event Stripe lain yang tidak relevan dibalas `200 {"status":"ignored"}` agar tidak di-retry oleh Stripe.
+
+Untuk pengujian lokal, gunakan Stripe CLI:
+
+```bash
+stripe listen --forward-to localhost:8000/webhooks/stripe
+```
 
 ### Kustomisasi Webhook
 
@@ -567,6 +629,12 @@ $payment->paymentMethod->vendor->getPaymentProcessorClass()
         │       ├── Dispatch PaymentGatewayProcessed
         │       ├── getQrCodeUrl()              → URL QR Code (QRIS, status_code 201)
         │       └── getMidtransVirtualAccountNumber() → Nomor VA (bank transfer, status_code 201)
+        │
+        ├── PaymentVendor::Stripe → Stripe::processPayment()
+        │       ├── Buat Checkout Session via Stripe API
+        │       ├── Simpan response ke payment record
+        │       ├── Dispatch PaymentGatewayProcessed
+        │       └── getStripeCheckoutUrl() → URL hosted checkout untuk redirect
         │
         ├── PaymentVendor::Offline → Offline::processPayment()
         │       └── setPaymentStatus(PAID) → Dispatch PaymentPaid

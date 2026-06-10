@@ -47,6 +47,7 @@ class PaymentModuleServiceProvider extends PackageServiceProvider
             ->withoutMiddleware(config('payment-module.webhook.without_middleware', [VerifyCsrfToken::class]))
             ->group(function () {
                 Route::post('midtrans', [Controllers\WebhookController::class, 'midtrans']);
+                Route::post('stripe', [Controllers\WebhookController::class, 'stripe']);
             });
     }
     
