@@ -5,6 +5,7 @@ use CodeWithDiki\PaymentModule\Enums\PaymentVendor;
 use CodeWithDiki\PaymentModule\Models\Payment;
 use CodeWithDiki\PaymentModule\Models\PaymentMethod;
 use CodeWithDiki\PaymentModule\Supports\PaymentMethod\Stripe;
+use Spatie\WebhookClient\Models\WebhookCall;
 
 function createStripePayment(array $attributes = []): Payment
 {
@@ -76,8 +77,9 @@ it('rejects stripe webhooks with an invalid signature', function () {
     config()->set('payment-module.stripe_webhook_secret', 'whsec_test');
 
     $this->postJson('/webhooks/stripe', ['type' => 'checkout.session.completed'])
-        ->assertStatus(400)
-        ->assertJson(['status' => 'error']);
+        ->assertStatus(500);
+
+    expect(WebhookCall::count())->toBe(0);
 });
 
 it('marks the payment as paid on checkout session completed', function () {
@@ -103,9 +105,10 @@ it('marks the payment as paid on checkout session completed', function () {
         'CONTENT_TYPE' => 'application/json',
     ], $payload)
         ->assertOk()
-        ->assertJson(['status' => 'success']);
+        ->assertJson(['message' => 'ok']);
 
-    expect($payment->fresh()->status)->toBe(PaymentStatus::PAID);
+    expect($payment->fresh()->status)->toBe(PaymentStatus::PAID)
+        ->and(WebhookCall::count())->toBe(1);
 });
 
 it('marks the payment as failed on checkout session expired', function () {
@@ -130,7 +133,7 @@ it('marks the payment as failed on checkout session expired', function () {
         'CONTENT_TYPE' => 'application/json',
     ], $payload)
         ->assertOk()
-        ->assertJson(['status' => 'success']);
+        ->assertJson(['message' => 'ok']);
 
     expect($payment->fresh()->status)->toBe(PaymentStatus::FAILED);
 });
@@ -138,11 +141,13 @@ it('marks the payment as failed on checkout session expired', function () {
 it('ignores unrelated stripe events', function () {
     config()->set('payment-module.stripe_webhook_secret', 'whsec_test');
 
+    $payment = createStripePayment();
+
     $payload = json_encode([
         'id' => 'evt_test',
         'object' => 'event',
         'type' => 'payment_intent.created',
-        'data' => ['object' => ['object' => 'payment_intent']],
+        'data' => ['object' => ['object' => 'payment_intent', 'client_reference_id' => $payment->payment_code]],
     ]);
 
     $this->call('POST', '/webhooks/stripe', [], [], [], [
@@ -150,5 +155,7 @@ it('ignores unrelated stripe events', function () {
         'CONTENT_TYPE' => 'application/json',
     ], $payload)
         ->assertOk()
-        ->assertJson(['status' => 'ignored']);
+        ->assertJson(['message' => 'ok']);
+
+    expect($payment->fresh()->status)->toBe(PaymentStatus::PENDING);
 });

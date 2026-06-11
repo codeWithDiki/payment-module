@@ -3,8 +3,11 @@
 // config for VendorName/Skeleton
 
 use CodeWithDiki\PaymentModule\Enums\PaymentVendor;
+use CodeWithDiki\PaymentModule\Events\DisbursementCreated;
 use CodeWithDiki\PaymentModule\Events\PaymentCreated;
+use CodeWithDiki\PaymentModule\Listeners\ProcessingDisbursementGateway;
 use CodeWithDiki\PaymentModule\Listeners\ProcessingPaymentGateway;
+use CodeWithDiki\PaymentModule\Models\Disbursement;
 use CodeWithDiki\PaymentModule\Models\Payment;
 use CodeWithDiki\PaymentModule\Models\PaymentMethod;
 use CodeWithDiki\PaymentModule\Models\PaymentMethodGroup;
@@ -15,6 +18,7 @@ return [
     'payment_method_class' => PaymentMethod::class,
     'payment_method_group_class' => PaymentMethodGroup::class,
     'payment_class' => Payment::class,
+    'disbursement_class' => Disbursement::class,
 
     /** Midtrans Config */
     'midtrans_server_key' => env('MIDTRANS_SERVER_KEY', ''),
@@ -22,6 +26,12 @@ return [
     'midtrans_is_production' => env('MIDTRANS_IS_PRODUCTION', false),
     'midtrans_is_sanitized' => env('MIDTRANS_IS_SANITIZED', true),
     'midtrans_is_3ds' => env('MIDTRANS_IS_3DS', false),
+
+    /** Midtrans Payout (Iris) Config */
+    'midtrans_iris_creator_key' => env('MIDTRANS_IRIS_CREATOR_KEY', ''),
+    'midtrans_iris_approver_key' => env('MIDTRANS_IRIS_APPROVER_KEY', ''),
+    // Iris merchant key, used to verify the Iris-Signature webhook header
+    'midtrans_iris_merchant_key' => env('MIDTRANS_IRIS_MERCHANT_KEY', ''),
 
     /** Stripe Config */
     'stripe_secret_key' => env('STRIPE_SECRET_KEY', ''),
@@ -42,6 +52,9 @@ return [
     'listeners' => [
         PaymentCreated::class => [
             ProcessingPaymentGateway::class,
+        ],
+        DisbursementCreated::class => [
+            ProcessingDisbursementGateway::class,
         ],
     ],
 ];

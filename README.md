@@ -4,7 +4,7 @@ Membangun sistem pembayaran dari nol di setiap proyek Laravel itu melelahkan. Ka
 
 Package ini adalah lapisan abstraksi di atas berbagai payment gateway. Kamu cukup panggil `PaymentModule::createPayment()`, dan semua proses di belakangnya — mulai dari charge ke gateway, menyimpan response, sampai men-dispatch event — ditangani secara otomatis. Arsitektur **event-driven** yang digunakan juga memastikan kamu tetap bisa menyesuaikan perilaku di setiap titik tanpa menyentuh kode inti package.
 
-Saat ini mendukung **Midtrans** (GoPay, ShopeePay, QRIS), **Stripe** (Checkout Session), dan **Offline** secara bawaan, dengan panel admin berbasis **Filament** yang siap pakai.
+Saat ini mendukung **Midtrans** (GoPay, ShopeePay, QRIS), **Stripe** (Checkout Session), dan **Offline** secara bawaan, dengan panel admin berbasis **Filament** yang siap pakai. Selain menerima pembayaran, package ini juga mendukung **disbursement** (kirim dana ke rekening pihak ketiga) via **Midtrans Payouts (Iris)**.
 
 ---
 
@@ -18,6 +18,7 @@ Saat ini mendukung **Midtrans** (GoPay, ShopeePay, QRIS), **Stripe** (Checkout S
 - [Menangani Status Pembayaran](#menangani-status-pembayaran)
 - [Webhook Midtrans](#webhook-midtrans)
 - [Webhook Stripe](#webhook-stripe)
+- [Disbursement (Payout)](#disbursement-payout)
 - [Integrasi Filament](#integrasi-filament)
 - [Menambah Vendor Baru dengan Enum Kustom](#menambah-vendor-baru-dengan-enum-kustom)
 - [Kustomisasi Lanjutan](#kustomisasi-lanjutan)
@@ -74,10 +75,11 @@ Publish dan jalankan migrasi:
 
 ```bash
 php artisan vendor:publish --tag="payment-module-migrations"
+php artisan vendor:publish --provider="Spatie\WebhookClient\WebhookClientServiceProvider" --tag="webhook-client-migrations"
 php artisan migrate
 ```
 
-Tiga tabel akan dibuat: `payment_method_groups`, `payment_methods`, dan `payments`.
+Empat tabel akan dibuat: `payment_method_groups`, `payment_methods`, `payments`, `disbursements`, plus tabel `webhook_calls` dari [spatie/laravel-webhook-client](https://github.com/spatie/laravel-webhook-client) yang dipakai untuk menyimpan setiap webhook yang masuk.
 
 Publish file konfigurasi:
 
@@ -328,6 +330,12 @@ Payment::isFailed()->get();
 
 ## Webhook Midtrans
 
+Semua webhook masuk ditangani oleh **[spatie/laravel-webhook-client](https://github.com/spatie/laravel-webhook-client)**:
+
+1. **Signature diverifikasi** lebih dulu (signature tidak valid → respons `500`, payload tidak disimpan).
+2. Webhook valid **disimpan ke tabel `webhook_calls`** sebagai jejak audit, dan gateway langsung menerima `200 {"message":"ok"}`.
+3. Pemrosesan sebenarnya (update status + dispatch event) berjalan **di queue** lewat job khusus per vendor — pastikan **queue worker berjalan** (`php artisan queue:work`), atau gunakan `QUEUE_CONNECTION=sync` agar diproses langsung.
+
 Route webhook didaftarkan **secara otomatis** oleh package saat service provider di-load — tidak perlu memanggil apapun di `AppServiceProvider`.
 
 Dengan konfigurasi default, endpoint yang tersedia adalah:
@@ -336,10 +344,11 @@ Dengan konfigurasi default, endpoint yang tersedia adalah:
 POST https://domain-kamu.com/webhooks/midtrans
 ```
 
-Masukkan URL tersebut di dashboard Midtrans. Webhook handler bawaan akan secara otomatis:
-1. Memvalidasi signature SHA-512 dari payload
-2. Memetakan status Midtrans ke `PaymentStatus` (`settlement`/`capture` → `PAID`, `deny`/`expire`/`cancel` → `FAILED`)
-3. Memanggil `setPaymentStatus()` yang men-dispatch event terkait
+Masukkan URL tersebut di dashboard Midtrans. Job `ProcessMidtransWebhookJob` akan secara otomatis:
+1. Memetakan status Midtrans ke `PaymentStatus` (`settlement`/`capture` → `PAID`, `deny`/`expire`/`cancel` → `FAILED`; status lain diabaikan)
+2. Memanggil `setPaymentStatus()` yang men-dispatch event terkait
+
+> Validasi signature SHA-512 (`sha512(order_id + status_code + gross_amount + server_key)`) dilakukan oleh `MidtransSignatureValidator` sebelum payload disimpan.
 
 ---
 
@@ -358,13 +367,12 @@ Daftarkan URL tersebut di [Stripe Dashboard → Developers → Webhooks](https:/
 - `checkout.session.async_payment_failed`
 - `checkout.session.expired`
 
-Webhook handler bawaan akan secara otomatis:
-1. Memverifikasi signature `Stripe-Signature` menggunakan webhook secret
-2. Memetakan event ke `PaymentStatus` (`completed`/`async_payment_succeeded` → `PAID`, `expired`/`async_payment_failed` → `FAILED`)
-3. Mencari transaksi via `client_reference_id` (berisi `payment_code`)
-4. Memanggil `setPaymentStatus()` yang men-dispatch event terkait
+Alur penanganannya sama dengan webhook Midtrans (simpan ke `webhook_calls` → proses di queue). `StripeSignatureValidator` memverifikasi header `Stripe-Signature`, lalu job `ProcessStripeWebhookJob` akan:
+1. Memetakan event ke `PaymentStatus` (`completed`/`async_payment_succeeded` → `PAID`, `expired`/`async_payment_failed` → `FAILED`)
+2. Mencari transaksi via `client_reference_id` (berisi `payment_code`)
+3. Memanggil `setPaymentStatus()` yang men-dispatch event terkait
 
-Event Stripe lain yang tidak relevan dibalas `200 {"status":"ignored"}` agar tidak di-retry oleh Stripe.
+Event Stripe lain yang tidak relevan tetap dibalas `200` (tersimpan di `webhook_calls`, tapi diabaikan oleh job) agar tidak di-retry oleh Stripe.
 
 Untuk pengujian lokal, gunakan Stripe CLI:
 
@@ -382,6 +390,101 @@ Ubah prefix atau hapus middleware CSRF via config:
     'without_middleware' => [],
 ],
 ```
+
+Package mendaftarkan tiga profil webhook-client secara otomatis: `payment-module-midtrans`, `payment-module-midtrans-payout`, dan `payment-module-stripe`. Profil milik aplikasimu sendiri di `config/webhook-client.php` tetap dipertahankan (profil tanpa `process_webhook_job` diabaikan karena tidak valid). Webhook lama otomatis dibersihkan oleh webhook-client setelah 30 hari (atur via config `webhook-client.delete_after_days` + jadwalkan `php artisan model:prune`).
+
+---
+
+## Disbursement (Payout)
+
+Selain menerima pembayaran, package ini bisa **mengirim dana keluar** ke rekening bank atau e-wallet pihak ketiga (misalnya untuk withdrawal seller, refund manual, atau pembayaran mitra) melalui **Midtrans Payouts API (Iris)**.
+
+> **Kenapa hanya Midtrans?** Stripe memiliki produk serupa (Global Payouts), tetapi saat ini hanya tersedia untuk akun pengirim yang berdomisili di **US/GB** — sehingga belum diimplementasikan. Vendor yang tidak mendukung disbursement akan melempar `DisbursementNotSupportedException`.
+
+### Konfigurasi
+
+Payouts/Iris memakai kredensial **terpisah** dari payment gateway Midtrans biasa. Ambil dari dashboard Midtrans (menu Payouts/Iris), lalu tambahkan ke `.env`:
+
+```env
+MIDTRANS_IRIS_CREATOR_KEY=your-creator-api-key
+MIDTRANS_IRIS_APPROVER_KEY=your-approver-api-key
+MIDTRANS_IRIS_MERCHANT_KEY=your-iris-merchant-key
+```
+
+- **Creator key** — dipakai untuk membuat payout.
+- **Approver key** — dipakai untuk approve/reject payout.
+- **Merchant key** — dipakai untuk memverifikasi signature webhook (`Iris-Signature`).
+
+Environment (sandbox/production) mengikuti `MIDTRANS_IS_PRODUCTION` yang sudah ada.
+
+### Membuat Disbursement
+
+```php
+use CodeWithDiki\PaymentModule\Facades\PaymentModule;
+use CodeWithDiki\PaymentModule\Data\DisbursementData;
+use CodeWithDiki\PaymentModule\Enums\PaymentVendor;
+
+$disbursement = PaymentModule::createDisbursement(new DisbursementData(
+    vendor: PaymentVendor::Midtrans,
+    disbursement_code: 'DISB-2026-0001', // unik, dipakai juga sebagai idempotency key
+    amount: 150000,
+    beneficiary_name: 'Budi Santoso',
+    beneficiary_account: '1234567890',   // no. rekening, atau no. HP (08xx) untuk e-wallet
+    beneficiary_bank: 'bca',             // kode bank (bca, bni, mandiri, ...) atau e-wallet (gopay, ovo)
+    beneficiary_email: 'budi@email.com', // opsional
+    notes: 'Withdrawal saldo seller',    // opsional, maks 100 karakter
+    disbursable: $withdrawal,            // opsional, model apapun (polymorphic)
+));
+```
+
+Sama seperti pembayaran, alurnya **event-driven**: `createDisbursement()` menyimpan record berstatus `PENDING` dan men-dispatch `DisbursementCreated`. Listener `ProcessingDisbursementGateway` (queued) lalu mengirim payout ke Midtrans — jika berhasil, `reference_no` tersimpan dan status menjadi `QUEUED`.
+
+### Alur Maker–Approver
+
+Midtrans Payouts memakai pemisahan wewenang: payout yang dibuat (status `queued`) harus **di-approve** dulu sebelum diproses. Approve/reject bisa dilakukan via dashboard Midtrans, atau langsung dari aplikasi:
+
+```php
+PaymentModule::approveDisbursement($disbursement);            // POST /payouts/approve
+PaymentModule::rejectDisbursement($disbursement, 'alasan');   // POST /payouts/reject
+```
+
+> Jika fitur approval dimatikan di dashboard Midtrans, payout langsung diproses tanpa perlu approve.
+
+### Siklus Status
+
+| Status | Arti |
+|--------|------|
+| `pending` | Dibuat lokal, belum terkirim ke gateway |
+| `queued` | Diterima Midtrans, menunggu approval |
+| `approved` / `rejected` | Hasil keputusan approver |
+| `processed` | Sedang diproses bank |
+| `completed` | Dana terkirim (`completed_at` terisi, dispatch `DisbursementCompleted`) |
+| `failed` | Gagal (`error_code`/`error_message` terisi, dispatch `DisbursementFailed`) |
+
+### Webhook Payout
+
+Daftarkan URL berikut di dashboard Midtrans (Payouts → Notification URL):
+
+```
+POST https://domain-kamu.com/webhooks/midtrans/payout
+```
+
+Alur penanganannya sama dengan webhook lain (simpan ke `webhook_calls` → proses di queue). `MidtransPayoutSignatureValidator` memverifikasi header `Iris-Signature` (`SHA512(rawBody + merchantKey)`), lalu job `ProcessMidtransPayoutWebhookJob` mencari disbursement via `reference_no` dan memanggil `setDisbursementStatus()` yang men-dispatch event terkait. Status yang tidak dikenal tetap dibalas `200` dan diabaikan.
+
+### Helper & Event
+
+```php
+PaymentModule::getDisbursementByCode('DISB-2026-0001');
+PaymentModule::getDisbursementByReferenceNo('REF-123');
+
+Disbursement::isPending()->get();
+Disbursement::isCompleted()->get();
+Disbursement::isFailed()->get();
+```
+
+Event yang tersedia untuk di-listen: `DisbursementCreated`, `DisbursementGatewayProcessed`, `DisbursementCompleted`, `DisbursementFailed`.
+
+> **Catatan enum kustom:** jika kamu memakai enum vendor kustom (lihat [Menambah Vendor Baru](#menambah-vendor-baru-dengan-enum-kustom)), tambahkan juga method `getDisbursementProcessorClass(): ?string` di enum-mu — kembalikan `null` untuk vendor yang tidak mendukung disbursement.
 
 ---
 
@@ -401,10 +504,11 @@ public function panel(Panel $panel): Panel
 }
 ```
 
-Tiga resource langsung tersedia di panel admin:
+Empat resource langsung tersedia di panel admin:
 - **Payments** — Daftar & detail transaksi (read-only)
 - **Payment Methods** — CRUD metode pembayaran
 - **Payment Method Groups** — CRUD grup metode pembayaran
+- **Disbursements** — Daftar & detail payout, dengan aksi **Approve**/**Reject** (muncul saat status `queued`) yang langsung memanggil API Midtrans
 
 ---
 
@@ -668,6 +772,12 @@ $payment->paymentMethod->vendor->getPaymentProcessorClass()
 | `getActivePaymentMethodGroups()` | `Collection` | Ambil semua group yang aktif beserta payment method-nya |
 | `getPaymentMethodsByGroupId(int $group_id)` | `Collection` | Ambil payment method aktif dalam grup tertentu |
 | `getPaymentFromPaymentable(string $type, int $id)` | `?Payment` | Cari pembayaran berdasarkan model yang terkait |
+| `createDisbursement(DisbursementData $data)` | `Disbursement` | Buat payout & dispatch `DisbursementCreated` |
+| `setDisbursementStatus(Disbursement $d, DisbursementStatus $s)` | `Disbursement` | Update status payout & dispatch event terkait |
+| `approveDisbursement(Disbursement $d)` | `Disbursement` | Approve payout via API approver |
+| `rejectDisbursement(Disbursement $d, ?string $reason)` | `Disbursement` | Reject payout via API approver |
+| `getDisbursementByCode(string $code)` | `?Disbursement` | Cari payout berdasarkan disbursement code |
+| `getDisbursementByReferenceNo(string $ref)` | `?Disbursement` | Cari payout berdasarkan reference number Midtrans |
 
 ### `PaymentData` — Parameter Pembayaran
 

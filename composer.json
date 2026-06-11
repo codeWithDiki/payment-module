@@ -20,6 +20,7 @@
         "midtrans/midtrans-php": "^2.6",
         "spatie/laravel-data": "^4.22",
         "spatie/laravel-package-tools": "^1.16",
+        "spatie/laravel-webhook-client": "^3.0",
         "stripe/stripe-php": "^17.0"
     },
     "require-dev": {

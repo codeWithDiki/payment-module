@@ -2,6 +2,7 @@
 
 namespace CodeWithDiki\PaymentModule;
 
+use CodeWithDiki\PaymentModule\Resources\Disbursements\DisbursementResource;
 use CodeWithDiki\PaymentModule\Resources\PaymentMethodGroups\PaymentMethodGroupResource;
 use CodeWithDiki\PaymentModule\Resources\PaymentMethods\PaymentMethodResource;
 use CodeWithDiki\PaymentModule\Resources\Payments\PaymentResource;
@@ -21,7 +22,8 @@ class PaymentModuleFilament implements Plugin
             ->resources([
                 PaymentResource::class,
                 PaymentMethodGroupResource::class,
-                PaymentMethodResource::class
+                PaymentMethodResource::class,
+                DisbursementResource::class,
             ])
             ->pages([
 

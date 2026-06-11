@@ -1,0 +1,38 @@
+<?php
+
+use Illuminate\Database\Migrations\Migration;
+use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\Schema;
+
+return new class extends Migration
+{
+    public function up()
+    {
+        Schema::create('disbursements', function (Blueprint $table) {
+            $table->id();
+            $table->nullableMorphs('disbursable');
+            $table->string('disbursement_code')->unique();
+            $table->string('reference_no')->nullable()->index();
+            $table->string('vendor');
+            $table->string('beneficiary_name');
+            $table->string('beneficiary_account');
+            $table->string('beneficiary_bank');
+            $table->string('beneficiary_email')->nullable();
+            $table->double('amount');
+            $table->string('notes')->nullable();
+            $table->string('status');
+            $table->longText('disbursement_payload')->nullable();
+            $table->longText('disbursement_response')->nullable();
+            $table->string('error_code')->nullable();
+            $table->string('error_message')->nullable();
+            $table->dateTime('completed_at')->nullable();
+
+            $table->timestamps();
+        });
+    }
+
+    public function down()
+    {
+        Schema::dropIfExists('disbursements');
+    }
+};
