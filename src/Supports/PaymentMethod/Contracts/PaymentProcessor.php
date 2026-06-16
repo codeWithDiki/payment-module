@@ -7,8 +7,7 @@ use Illuminate\Support\Collection;
 
 interface PaymentProcessor
 {
-    public function processPayment(Payment $payment) : void;
+    public function processPayment(Payment $payment): void;
 
-    public function getChannels() : Collection;
-
+    public function getChannels(): Collection;
 }

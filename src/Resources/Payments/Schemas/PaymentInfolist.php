@@ -19,6 +19,11 @@ class PaymentInfolist
                 TextEntry::make('payment_code'),
                 TextEntry::make('amount')
                     ->numeric(),
+                TextEntry::make('fee')
+                    ->numeric(),
+                TextEntry::make('total_amount')
+                    ->label('Total amount')
+                    ->numeric(),
                 TextEntry::make('payment_headers')
                     ->placeholder('-')
                     ->formatStateUsing(fn ($state) => is_array($state) ? json_encode($state, JSON_PRETTY_PRINT) : $state)

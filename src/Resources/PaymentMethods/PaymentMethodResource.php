@@ -2,6 +2,8 @@
 
 namespace CodeWithDiki\PaymentModule\Resources\PaymentMethods;
 
+use BackedEnum;
+use CodeWithDiki\PaymentModule\Models\PaymentMethod;
 use CodeWithDiki\PaymentModule\Resources\PaymentMethods\Pages\CreatePaymentMethod;
 use CodeWithDiki\PaymentModule\Resources\PaymentMethods\Pages\EditPaymentMethod;
 use CodeWithDiki\PaymentModule\Resources\PaymentMethods\Pages\ListPaymentMethods;
@@ -9,8 +11,6 @@ use CodeWithDiki\PaymentModule\Resources\PaymentMethods\Pages\ViewPaymentMethod;
 use CodeWithDiki\PaymentModule\Resources\PaymentMethods\Schemas\PaymentMethodForm;
 use CodeWithDiki\PaymentModule\Resources\PaymentMethods\Schemas\PaymentMethodInfolist;
 use CodeWithDiki\PaymentModule\Resources\PaymentMethods\Tables\PaymentMethodsTable;
-use BackedEnum;
-use CodeWithDiki\PaymentModule\Models\PaymentMethod;
 use Filament\Resources\Resource;
 use Filament\Schemas\Schema;
 use Filament\Support\Icons\Heroicon;
@@ -21,12 +21,12 @@ class PaymentMethodResource extends Resource
     protected static ?string $model = PaymentMethod::class;
 
     protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedCreditCard;
-    
+
     protected static null|\UnitEnum|string $navigationGroup = 'Payment Management';
 
     protected static ?string $recordTitleAttribute = 'name';
 
-    public static function getModel() : string
+    public static function getModel(): string
     {
         return config('payment-module.payment_method_class', PaymentMethod::class);
     }

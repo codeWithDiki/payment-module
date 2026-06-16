@@ -60,6 +60,8 @@ class PaymentModuleServiceProvider extends PackageServiceProvider
                 Route::webhooks('midtrans', 'payment-module-midtrans');
                 Route::webhooks('midtrans/payout', 'payment-module-midtrans-payout');
                 Route::webhooks('stripe', 'payment-module-stripe');
+                Route::webhooks('xendit', 'payment-module-xendit');
+                Route::webhooks('xendit/disbursement', 'payment-module-xendit-disbursement');
             });
     }
 
@@ -104,6 +106,18 @@ class PaymentModuleServiceProvider extends PackageServiceProvider
                     'signature_header_name' => 'Stripe-Signature',
                     'signature_validator' => Webhooks\SignatureValidators\StripeSignatureValidator::class,
                     'process_webhook_job' => Webhooks\Jobs\ProcessStripeWebhookJob::class,
+                ]),
+                array_merge($defaults, [
+                    'name' => 'payment-module-xendit',
+                    'signature_header_name' => 'x-callback-token',
+                    'signature_validator' => Webhooks\SignatureValidators\XenditSignatureValidator::class,
+                    'process_webhook_job' => Webhooks\Jobs\ProcessXenditWebhookJob::class,
+                ]),
+                array_merge($defaults, [
+                    'name' => 'payment-module-xendit-disbursement',
+                    'signature_header_name' => 'x-callback-token',
+                    'signature_validator' => Webhooks\SignatureValidators\XenditSignatureValidator::class,
+                    'process_webhook_job' => Webhooks\Jobs\ProcessXenditDisbursementWebhookJob::class,
                 ]),
             ]
         ));

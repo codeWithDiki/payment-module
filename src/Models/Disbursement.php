@@ -8,7 +8,30 @@ use Illuminate\Database\Eloquent\Attributes\Scope;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\MorphTo;
+use Illuminate\Support\Carbon;
 
+/**
+ * @property int $id
+ * @property string|null $disbursable_type
+ * @property int|null $disbursable_id
+ * @property string $disbursement_code
+ * @property string|null $reference_no
+ * @property PaymentVendor $vendor
+ * @property string $beneficiary_name
+ * @property string $beneficiary_account
+ * @property string $beneficiary_bank
+ * @property string|null $beneficiary_email
+ * @property float $amount
+ * @property string|null $notes
+ * @property DisbursementStatus $status
+ * @property array|null $disbursement_payload
+ * @property array|null $disbursement_response
+ * @property string|null $error_code
+ * @property string|null $error_message
+ * @property string|null $created_by
+ * @property string|null $approved_by
+ * @property Carbon|null $completed_at
+ */
 class Disbursement extends Model
 {
     protected $guarded = [];

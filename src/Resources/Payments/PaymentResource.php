@@ -2,13 +2,13 @@
 
 namespace CodeWithDiki\PaymentModule\Resources\Payments;
 
+use BackedEnum;
+use CodeWithDiki\PaymentModule\Models\Payment;
 use CodeWithDiki\PaymentModule\Resources\Payments\Pages\ListPayments;
 use CodeWithDiki\PaymentModule\Resources\Payments\Pages\ViewPayment;
 use CodeWithDiki\PaymentModule\Resources\Payments\Schemas\PaymentForm;
 use CodeWithDiki\PaymentModule\Resources\Payments\Schemas\PaymentInfolist;
 use CodeWithDiki\PaymentModule\Resources\Payments\Tables\PaymentsTable;
-use BackedEnum;
-use CodeWithDiki\PaymentModule\Models\Payment;
 use Filament\Resources\Resource;
 use Filament\Schemas\Schema;
 use Filament\Support\Icons\Heroicon;
@@ -24,7 +24,7 @@ class PaymentResource extends Resource
 
     protected static ?string $recordTitleAttribute = 'payment_code';
 
-    public static function getModel() : string
+    public static function getModel(): string
     {
         return config('payment-module.payment_class', Payment::class);
     }

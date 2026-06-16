@@ -4,8 +4,9 @@ namespace CodeWithDiki\PaymentModule\Data;
 
 use CodeWithDiki\PaymentModule\Enums\PaymentStatus;
 use Illuminate\Database\Eloquent\Model;
+use Spatie\LaravelData\Data;
 
-class PaymentData extends \Spatie\LaravelData\Data
+class PaymentData extends Data
 {
     public function __construct(
         public Model $paymentable,
@@ -21,6 +22,5 @@ class PaymentData extends \Spatie\LaravelData\Data
         public ?string $payment_headers = null,
         public ?string $payment_payload = null,
         public ?string $payment_response = null,
-    ) {
-    }
+    ) {}
 }

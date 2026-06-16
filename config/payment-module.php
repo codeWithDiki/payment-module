@@ -42,6 +42,15 @@ return [
     'stripe_success_url' => env('STRIPE_SUCCESS_URL', ''),
     'stripe_cancel_url' => env('STRIPE_CANCEL_URL', ''),
 
+    /** Xendit Config */
+    'xendit_secret_key' => env('XENDIT_SECRET_KEY', ''),
+    // Callback verification token from the Xendit dashboard, sent in the x-callback-token header
+    'xendit_webhook_token' => env('XENDIT_WEBHOOK_TOKEN', ''),
+    'xendit_is_production' => env('XENDIT_IS_PRODUCTION', false),
+    // Redirect URLs for e-wallet checkout; {payment_code} is replaced at charge time
+    'xendit_success_redirect_url' => env('XENDIT_SUCCESS_REDIRECT_URL', ''),
+    'xendit_failure_redirect_url' => env('XENDIT_FAILURE_REDIRECT_URL', ''),
+
     'vendor_enum_class' => PaymentVendor::class,
 
     'webhook' => [
