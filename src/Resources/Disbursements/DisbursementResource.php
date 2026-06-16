@@ -4,6 +4,8 @@ namespace CodeWithDiki\PaymentModule\Resources\Disbursements;
 
 use BackedEnum;
 use CodeWithDiki\PaymentModule\Enums\DisbursementStatus;
+use CodeWithDiki\PaymentModule\Exceptions\DisbursementApprovalDeniedException;
+use CodeWithDiki\PaymentModule\Exceptions\DisbursementNotSupportedException;
 use CodeWithDiki\PaymentModule\Facades\PaymentModule;
 use CodeWithDiki\PaymentModule\Models\Disbursement;
 use CodeWithDiki\PaymentModule\Resources\Disbursements\Pages\ListDisbursements;
@@ -18,6 +20,7 @@ use Filament\Resources\Resource;
 use Filament\Schemas\Schema;
 use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Table;
+use Illuminate\Support\Facades\Log;
 
 class DisbursementResource extends Resource
 {
@@ -65,10 +68,22 @@ class DisbursementResource extends Resource
                         ->title('Disbursement approved')
                         ->success()
                         ->send();
-                } catch (\Throwable $e) {
+                } catch (DisbursementApprovalDeniedException|DisbursementNotSupportedException $e) {
+                    // Safe domain messages can be shown to the operator
                     Notification::make()
                         ->title('Failed to approve disbursement')
                         ->body($e->getMessage())
+                        ->danger()
+                        ->send();
+                } catch (\Throwable $e) {
+                    Log::error('Disbursement approval failed', [
+                        'disbursement_id' => $record->id,
+                        'exception' => $e,
+                    ]);
+
+                    Notification::make()
+                        ->title('Failed to approve disbursement')
+                        ->body('An unexpected error occurred. Please try again or contact support.')
                         ->danger()
                         ->send();
                 }
@@ -96,10 +111,21 @@ class DisbursementResource extends Resource
                         ->title('Disbursement rejected')
                         ->success()
                         ->send();
-                } catch (\Throwable $e) {
+                } catch (DisbursementNotSupportedException $e) {
                     Notification::make()
                         ->title('Failed to reject disbursement')
                         ->body($e->getMessage())
+                        ->danger()
+                        ->send();
+                } catch (\Throwable $e) {
+                    Log::error('Disbursement rejection failed', [
+                        'disbursement_id' => $record->id,
+                        'exception' => $e,
+                    ]);
+
+                    Notification::make()
+                        ->title('Failed to reject disbursement')
+                        ->body('An unexpected error occurred. Please try again or contact support.')
                         ->danger()
                         ->send();
                 }

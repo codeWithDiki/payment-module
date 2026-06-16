@@ -20,6 +20,11 @@ class PaymentModule
 
         $paymentMethod = $paymentMethodClass::isActive()->where('id', $paymentData->payment_method_id)->firstOrFail();
 
+        // Fee from the payment method is automatically added on top of the amount,
+        // so the customer is billed amount + fee (total_amount).
+        $fee = $paymentMethod->calculateFee($paymentData->amount);
+        $total_amount = $paymentData->amount + $fee;
+
         $payment = config('payment-module.payment_class')::create([
             'paymentable_type' => get_class($paymentData->paymentable),
             'paymentable_id' => $paymentData->paymentable->id,
@@ -31,6 +36,8 @@ class PaymentModule
             'payment_method_id' => $paymentMethod->id,
             'payment_code' => $paymentData->payment_code,
             'amount' => $paymentData->amount,
+            'fee' => $fee,
+            'total_amount' => $total_amount,
             'status' => $paymentData->status,
             'payment_headers' => $paymentData->payment_headers,
             'payment_payload' => $paymentData->payment_payload,
@@ -44,6 +51,12 @@ class PaymentModule
 
     public function setPaymentStatus(Payment $payment, PaymentStatus $status): Payment
     {
+        // Idempotency: once a payment reaches a terminal status, ignore further
+        // transitions (e.g. a replayed webhook) so events are not dispatched twice.
+        if ($payment->status instanceof PaymentStatus && $payment->status->isTerminal()) {
+            return $payment;
+        }
+
         $payment->update([
             'status' => $status,
         ]);
@@ -86,6 +99,8 @@ class PaymentModule
             'amount' => $data->amount,
             'notes' => $data->notes,
             'status' => Enums\DisbursementStatus::PENDING,
+            // Record the maker for separation-of-duties enforcement (null when no auth context)
+            'created_by' => auth()->id(),
         ]);
 
         Events\DisbursementCreated::dispatch($disbursement);
@@ -95,6 +110,12 @@ class PaymentModule
 
     public function setDisbursementStatus(Models\Disbursement $disbursement, Enums\DisbursementStatus $status): Models\Disbursement
     {
+        // Idempotency: once a disbursement reaches a terminal status, ignore further
+        // transitions (e.g. a replayed webhook) so events are not dispatched twice.
+        if ($disbursement->status instanceof Enums\DisbursementStatus && $disbursement->status->isTerminal()) {
+            return $disbursement;
+        }
+
         $disbursement->update(array_merge(
             ['status' => $status],
             $status === Enums\DisbursementStatus::COMPLETED ? ['completed_at' => now()] : []
@@ -122,9 +143,28 @@ class PaymentModule
 
     public function approveDisbursement(Models\Disbursement $disbursement): Models\Disbursement
     {
+        $this->guardSeparationOfDuties($disbursement);
+
         $this->getDisbursementProcessor($disbursement)->approveDisbursement($disbursement);
 
+        $disbursement->update(['approved_by' => auth()->id()]);
+
         return $disbursement;
+    }
+
+    /**
+     * Enforce maker-approver separation of duties: the user who created a disbursement
+     * may not approve it. Skipped when there is no authenticated user or no recorded maker.
+     */
+    protected function guardSeparationOfDuties(Models\Disbursement $disbursement): void
+    {
+        $currentUser = auth()->id();
+
+        if ($currentUser !== null
+            && $disbursement->created_by !== null
+            && (string) $disbursement->created_by === (string) $currentUser) {
+            throw Exceptions\DisbursementApprovalDeniedException::selfApproval();
+        }
     }
 
     public function rejectDisbursement(Models\Disbursement $disbursement, ?string $reason = null): Models\Disbursement
@@ -154,6 +194,8 @@ class PaymentModule
             'channel' => $paymentMethodData->channel,
             'vendor' => $paymentMethodData->vendor,
             'is_active' => $paymentMethodData->is_active,
+            'fee_flat' => $paymentMethodData->fee_flat,
+            'fee_percentage' => $paymentMethodData->fee_percentage,
         ]);
     }
 

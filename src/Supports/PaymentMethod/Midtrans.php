@@ -2,6 +2,8 @@
 
 namespace CodeWithDiki\PaymentModule\Supports\PaymentMethod;
 
+use CodeWithDiki\PaymentModule\Events\PaymentGatewayProcessed;
+use CodeWithDiki\PaymentModule\Models\Payment;
 use Illuminate\Support\Collection;
 use Midtrans\Config;
 use Midtrans\CoreApi;
@@ -22,52 +24,48 @@ class Midtrans implements Contracts\PaymentProcessor
     public function getChannels(): Collection
     {
         return collect([
-            "gopay" => "GoPay",
-            "shopee_pay" => "ShopeePay",
-            "qris" => "QRIS",
-            "permata" => "Permata",
-            "bca" => "BCA",
-            "bni" => "BNI",
-            "bri" => "BRI",
-            "bsi" => "BSI",
-            "mandiri" => "Mandiri",
+            'gopay' => 'GoPay',
+            'shopee_pay' => 'ShopeePay',
+            'qris' => 'QRIS',
+            'permata' => 'Permata',
+            'bca' => 'BCA',
+            'bni' => 'BNI',
+            'bri' => 'BRI',
+            'bsi' => 'BSI',
+            'mandiri' => 'Mandiri',
         ]);
     }
 
-    public function processPayment(\CodeWithDiki\PaymentModule\Models\Payment $payment): void
+    public function processPayment(Payment $payment): void
     {
         $transaction_details = [
-            "payment_type" => $payment->paymentMethod->channel,
-            "transaction_details" => [
-                "order_id" => $payment->payment_code,
-                "gross_amount" => $payment->amount
-            ]
+            'payment_type' => $payment->paymentMethod->channel,
+            'transaction_details' => [
+                'order_id' => $payment->payment_code,
+                'gross_amount' => $payment->billableAmount(),
+            ],
         ];
 
-        if(!in_array($payment->paymentMethod->channel, ["gopay", "qris", "shopee_pay"]))
-        {
-            $transaction_details["payment_type"] = "bank_transfer";
-            $transaction_details["bank_transfer"] = [
-                "bank" => $payment->paymentMethod->channel
+        if (! in_array($payment->paymentMethod->channel, ['gopay', 'qris', 'shopee_pay'])) {
+            $transaction_details['payment_type'] = 'bank_transfer';
+            $transaction_details['bank_transfer'] = [
+                'bank' => $payment->paymentMethod->channel,
             ];
         }
 
-        if($payment->paymentMethod->channel == "qris")
-        {
-            $transaction_details["qris"] = [
-                "acquirer" => "gopay"
+        if ($payment->paymentMethod->channel == 'qris') {
+            $transaction_details['qris'] = [
+                'acquirer' => 'gopay',
             ];
         }
 
         $response = CoreApi::charge($transaction_details);
 
         $payment->update([
-            "payment_response" => $response
+            'payment_response' => $response,
         ]);
 
-        \CodeWithDiki\PaymentModule\Events\PaymentGatewayProcessed::dispatch($payment);
+        PaymentGatewayProcessed::dispatch($payment);
 
     }
-
-
 }

@@ -12,7 +12,7 @@ class ViewPayment extends ViewRecord
     protected function getHeaderActions(): array
     {
         return [
-            
+
         ];
     }
 }

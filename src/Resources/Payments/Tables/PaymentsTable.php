@@ -56,7 +56,7 @@ class PaymentsTable
             ])
             ->toolbarActions([
                 BulkActionGroup::make([
-                    
+
                 ]),
             ]);
     }

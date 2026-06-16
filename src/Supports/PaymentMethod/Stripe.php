@@ -53,7 +53,7 @@ class Stripe implements Contracts\PaymentProcessor
                         'product_data' => [
                             'name' => $payment->payment_code,
                         ],
-                        'unit_amount' => $this->toSmallestCurrencyUnit($payment->amount, $currency),
+                        'unit_amount' => $this->toSmallestCurrencyUnit($payment->billableAmount(), $currency),
                     ],
                     'quantity' => 1,
                 ],
@@ -80,6 +80,17 @@ class Stripe implements Contracts\PaymentProcessor
 
     protected function toSmallestCurrencyUnit(float $amount, string $currency): int
     {
+        return self::smallestCurrencyUnit($amount, $currency);
+    }
+
+    /**
+     * Convert a decimal amount into Stripe's smallest currency unit. Public and static
+     * so the webhook job can compute the expected amount for verification.
+     */
+    public static function smallestCurrencyUnit(float $amount, ?string $currency = null): int
+    {
+        $currency = $currency ?: config('payment-module.stripe_currency', 'usd');
+
         if (in_array(strtolower($currency), self::ZERO_DECIMAL_CURRENCIES)) {
             return (int) round($amount);
         }

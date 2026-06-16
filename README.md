@@ -4,7 +4,11 @@ Membangun sistem pembayaran dari nol di setiap proyek Laravel itu melelahkan. Ka
 
 Package ini adalah lapisan abstraksi di atas berbagai payment gateway. Kamu cukup panggil `PaymentModule::createPayment()`, dan semua proses di belakangnya — mulai dari charge ke gateway, menyimpan response, sampai men-dispatch event — ditangani secara otomatis. Arsitektur **event-driven** yang digunakan juga memastikan kamu tetap bisa menyesuaikan perilaku di setiap titik tanpa menyentuh kode inti package.
 
-Saat ini mendukung **Midtrans** (GoPay, ShopeePay, QRIS), **Stripe** (Checkout Session), dan **Offline** secara bawaan, dengan panel admin berbasis **Filament** yang siap pakai. Selain menerima pembayaran, package ini juga mendukung **disbursement** (kirim dana ke rekening pihak ketiga) via **Midtrans Payouts (Iris)**.
+Saat ini mendukung **Midtrans** (GoPay, ShopeePay, QRIS), **Stripe** (Checkout Session), **Xendit** (Virtual Account, e-wallet, QRIS), dan **Offline** secara bawaan, dengan panel admin berbasis **Filament** yang siap pakai. Selain menerima pembayaran, package ini juga mendukung **disbursement** (kirim dana ke rekening pihak ketiga) via **Midtrans Payouts (Iris)** dan **Xendit Disbursement**.
+
+Setiap payment method bisa dikenakan **fee otomatis** (flat + persentase) yang ditambahkan ke tagihan pelanggan.
+
+> **Versi:** project ini mengikuti [Semantic Versioning](https://semver.org/lang/id/) dan ditandai lewat git tag `vX.Y.Z`. Dukungan Xendit & sistem fee diperkenalkan di **v1.3.0** — lihat [CHANGELOG](CHANGELOG.md) dan [Upgrade dari 1.2.x ke 1.3.0](#upgrade-dari-12x-ke-130).
 
 ---
 
@@ -12,13 +16,17 @@ Saat ini mendukung **Midtrans** (GoPay, ShopeePay, QRIS), **Stripe** (Checkout S
 
 - [Persyaratan](#persyaratan)
 - [Instalasi](#instalasi)
+- [Upgrade dari 1.2.x ke 1.3.0](#upgrade-dari-12x-ke-130)
 - [Konfigurasi](#konfigurasi)
 - [Setup Payment Method](#setup-payment-method)
+- [Fee Payment Method](#fee-payment-method)
 - [Membuat Pembayaran](#membuat-pembayaran)
 - [Menangani Status Pembayaran](#menangani-status-pembayaran)
 - [Webhook Midtrans](#webhook-midtrans)
 - [Webhook Stripe](#webhook-stripe)
+- [Webhook Xendit](#webhook-xendit)
 - [Disbursement (Payout)](#disbursement-payout)
+- [Keamanan Webhook & Disbursement](#keamanan-webhook--disbursement)
 - [Integrasi Filament](#integrasi-filament)
 - [Menambah Vendor Baru dengan Enum Kustom](#menambah-vendor-baru-dengan-enum-kustom)
 - [Kustomisasi Lanjutan](#kustomisasi-lanjutan)
@@ -89,6 +97,72 @@ php artisan vendor:publish --tag="payment-module-config"
 
 ---
 
+## Upgrade dari 1.2.x ke 1.3.0
+
+Versi **1.3.0** menambah beberapa kolom baru ke skema database:
+
+| Tabel | Kolom baru | Keterangan |
+|-------|------------|------------|
+| `payment_methods` | `fee_flat`, `fee_percentage` | Konfigurasi fee per metode pembayaran (default `0`) |
+| `payments` | `fee`, `total_amount` | Fee yang dihitung & total yang ditagih ke pelanggan |
+| `disbursements` | `created_by`, `approved_by` | Audit maker-approver (default `null`) |
+
+**Instalasi baru:** tidak ada langkah tambahan — migrasi bawaan sudah menyertakan kolom di atas.
+
+**Instalasi lama (sudah pernah migrate di 1.2.x):** kolom tidak ditambahkan otomatis. Buat satu migration untuk meng-`ALTER` tabel yang sudah ada:
+
+```bash
+php artisan make:migration upgrade_payment_module_to_1_3
+```
+
+```php
+use Illuminate\Database\Migrations\Migration;
+use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\Schema;
+
+return new class extends Migration
+{
+    public function up(): void
+    {
+        Schema::table('payment_methods', function (Blueprint $table) {
+            $table->double('fee_flat')->default(0)->after('image_url');
+            $table->double('fee_percentage')->default(0)->after('fee_flat');
+        });
+
+        Schema::table('payments', function (Blueprint $table) {
+            $table->double('fee')->default(0)->after('amount');
+            $table->double('total_amount')->default(0)->after('fee');
+        });
+
+        Schema::table('disbursements', function (Blueprint $table) {
+            $table->string('created_by')->nullable()->after('error_message');
+            $table->string('approved_by')->nullable()->after('created_by');
+        });
+
+        // Isi total_amount untuk record lama agar verifikasi nominal webhook tetap akurat
+        \DB::table('payments')->whereNull('total_amount')->orWhere('total_amount', 0)
+            ->update(['total_amount' => \DB::raw('amount')]);
+    }
+
+    public function down(): void
+    {
+        Schema::table('payment_methods', fn (Blueprint $t) => $t->dropColumn(['fee_flat', 'fee_percentage']));
+        Schema::table('payments', fn (Blueprint $t) => $t->dropColumn(['fee', 'total_amount']));
+        Schema::table('disbursements', fn (Blueprint $t) => $t->dropColumn(['created_by', 'approved_by']));
+    }
+};
+```
+
+```bash
+php artisan migrate
+```
+
+> `Payment::billableAmount()` jatuh kembali ke `amount` bila `total_amount` masih `0`, jadi pembayaran lama tetap berfungsi meski belum di-backfill — tapi backfill di atas tetap disarankan agar verifikasi nominal webhook konsisten.
+
+Terakhir, tambahkan kredensial Xendit ke `.env` bila ingin memakainya (lihat [Konfigurasi](#konfigurasi)).
+
+---
+
 ## Konfigurasi
 
 Setelah publish, buka `config/payment-module.php`. Di sinilah kamu mengatur semua hal — dari class model yang digunakan, kredensial Midtrans, sampai listener event:
@@ -122,6 +196,15 @@ return [
     'stripe_success_url'     => env('STRIPE_SUCCESS_URL', ''),
     'stripe_cancel_url'      => env('STRIPE_CANCEL_URL', ''),
 
+    // Xendit
+    'xendit_secret_key'           => env('XENDIT_SECRET_KEY', ''),
+    // Verification token callback dari dashboard Xendit (header x-callback-token)
+    'xendit_webhook_token'        => env('XENDIT_WEBHOOK_TOKEN', ''),
+    'xendit_is_production'        => env('XENDIT_IS_PRODUCTION', false),
+    // {payment_code} akan diganti dengan payment code transaksi (untuk e-wallet)
+    'xendit_success_redirect_url' => env('XENDIT_SUCCESS_REDIRECT_URL', ''),
+    'xendit_failure_redirect_url' => env('XENDIT_FAILURE_REDIRECT_URL', ''),
+
     // Webhook
     'webhook' => [
         'prefix'             => 'webhooks',
@@ -150,6 +233,12 @@ STRIPE_WEBHOOK_SECRET=whsec_xxx
 STRIPE_CURRENCY=usd
 STRIPE_SUCCESS_URL="https://domain-kamu.com/payments/{payment_code}/success"
 STRIPE_CANCEL_URL="https://domain-kamu.com/payments/{payment_code}/cancel"
+
+XENDIT_SECRET_KEY=xnd_development_xxx
+XENDIT_WEBHOOK_TOKEN=your-callback-verification-token
+XENDIT_IS_PRODUCTION=false
+XENDIT_SUCCESS_REDIRECT_URL="https://domain-kamu.com/payments/{payment_code}/success"
+XENDIT_FAILURE_REDIRECT_URL="https://domain-kamu.com/payments/{payment_code}/failure"
 ```
 
 ---
@@ -212,9 +301,53 @@ PaymentModule::createPaymentMethod(new PaymentMethodData(
 |--------|---------|
 | `Midtrans` | `gopay`, `shopee_pay`, `qris`, `permata`, `bca`, `bni`, `bri`, `bsi`, `mandiri` |
 | `Stripe` | `card`, `link`, `alipay`, `wechat_pay` |
+| `Xendit` | `BCA`, `BNI`, `BRI`, `MANDIRI`, `PERMATA`, `BSI` (Virtual Account); `ID_OVO`, `ID_DANA`, `ID_LINKAJA`, `ID_SHOPEEPAY` (e-wallet); `QRIS` |
 | `Offline` | `bank_transfer`, `cstore`, `offline`, `offline_qris` |
 
 > Channel `permata`, `bca`, `bni`, `bri`, `bsi`, dan `mandiri` diproses sebagai **bank transfer** via Midtrans.
+>
+> Untuk **Xendit**, channel `QRIS` membuat QR dinamis, channel `ID_*` membuat e-wallet charge, dan sisanya (kode bank) membuat **closed Virtual Account**.
+
+---
+
+## Fee Payment Method
+
+Setiap payment method bisa dikenakan **fee** yang otomatis ditambahkan ke tagihan pelanggan. Fee terdiri dari dua komponen yang bisa dikombinasikan:
+
+- `fee_flat` — nominal tetap (mis. `4400` untuk biaya VA)
+- `fee_percentage` — persentase dari `amount` (mis. `0.7` untuk QRIS, `2.9` untuk kartu)
+
+```php
+PaymentModule::createPaymentMethod(new PaymentMethodData(
+    name: 'Virtual Account BCA',
+    vendor: PaymentVendor::Xendit,
+    channel: 'BCA',
+    is_active: true,
+    fee_flat: 4400,       // Rp4.400 biaya tetap
+    fee_percentage: 0,    // tanpa komponen persentase
+));
+```
+
+Saat pembayaran dibuat, fee dihitung otomatis dan disimpan ke kolom `fee`, lalu `total_amount = amount + fee` adalah jumlah yang **benar-benar ditagih** ke pelanggan oleh gateway:
+
+```
+fee          = fee_flat + (amount × fee_percentage / 100)
+total_amount = amount + fee
+```
+
+Contoh: `amount` `100000` dengan `fee_flat: 4400` dan `fee_percentage: 0` → `fee` `4400`, `total_amount` `104400`. Nilai inilah yang dikirim ke Midtrans/Stripe/Xendit dan yang diverifikasi saat webhook masuk.
+
+```php
+$payment->amount;            // 100000 (nominal pokok)
+$payment->fee;               // 4400
+$payment->total_amount;      // 104400
+$payment->billableAmount();  // 104400 (fallback ke amount bila total_amount belum terisi)
+
+// Hitung fee tanpa membuat payment:
+$paymentMethod->calculateFee(100000); // 4400.0
+```
+
+> Fee dihitung di sisi server dari konfigurasi payment method — bukan input dari pemanggil — sehingga tidak bisa dimanipulasi lewat request.
 
 ---
 
@@ -274,7 +407,7 @@ $checkoutUrl = $payment->getStripeCheckoutUrl();
 return redirect()->away($checkoutUrl);
 ```
 
-> Nominal `amount` otomatis dikonversi ke satuan terkecil currency (dikali 100, kecuali currency zero-decimal seperti `jpy`, `krw`, `vnd`).
+> Nominal yang ditagih adalah `total_amount` (amount + fee), otomatis dikonversi ke satuan terkecil currency (dikali 100, kecuali currency zero-decimal seperti `jpy`, `krw`, `vnd`).
 
 ---
 
@@ -391,15 +524,34 @@ Ubah prefix atau hapus middleware CSRF via config:
 ],
 ```
 
-Package mendaftarkan tiga profil webhook-client secara otomatis: `payment-module-midtrans`, `payment-module-midtrans-payout`, dan `payment-module-stripe`. Profil milik aplikasimu sendiri di `config/webhook-client.php` tetap dipertahankan (profil tanpa `process_webhook_job` diabaikan karena tidak valid). Webhook lama otomatis dibersihkan oleh webhook-client setelah 30 hari (atur via config `webhook-client.delete_after_days` + jadwalkan `php artisan model:prune`).
+Package mendaftarkan lima profil webhook-client secara otomatis: `payment-module-midtrans`, `payment-module-midtrans-payout`, `payment-module-stripe`, `payment-module-xendit`, dan `payment-module-xendit-disbursement`. Profil milik aplikasimu sendiri di `config/webhook-client.php` tetap dipertahankan (profil tanpa `process_webhook_job` diabaikan karena tidak valid). Webhook lama otomatis dibersihkan oleh webhook-client setelah 30 hari (atur via config `webhook-client.delete_after_days` + jadwalkan `php artisan model:prune`).
+
+---
+
+## Webhook Xendit
+
+Route webhook Xendit juga didaftarkan otomatis. Dengan konfigurasi default, endpoint pembayaran-nya:
+
+```
+POST https://domain-kamu.com/webhooks/xendit
+```
+
+Daftarkan URL tersebut di [Xendit Dashboard → Settings → Webhooks](https://dashboard.xendit.co/settings/developers#webhooks) untuk channel yang dipakai (Virtual Account, e-wallet, QR). Salin **Webhook Verification Token** dari dashboard ke env `XENDIT_WEBHOOK_TOKEN`.
+
+Xendit mengautentikasi callback lewat header **`x-callback-token`** (token statis, bukan HMAC). `XenditSignatureValidator` mencocokkan header ini dengan `XENDIT_WEBHOOK_TOKEN` secara timing-safe; bila token belum diisi, semua callback ditolak. Lalu `ProcessXenditWebhookJob`:
+
+1. Menormalkan payload lintas produk (Virtual Account, e-wallet, QR) — `reference_id`/`external_id` berisi `payment_code`.
+2. Memetakan status ke `PaymentStatus` (`PAID`/`SUCCEEDED`/`COMPLETED` → `PAID`, `FAILED`/`EXPIRED`/`VOIDED` → `FAILED`; callback VA tertutup yang membawa `payment_id` dianggap `PAID`).
+3. **Memverifikasi nominal** callback terhadap `total_amount` sebelum menandai `PAID`.
+4. Memanggil `setPaymentStatus()`.
 
 ---
 
 ## Disbursement (Payout)
 
-Selain menerima pembayaran, package ini bisa **mengirim dana keluar** ke rekening bank atau e-wallet pihak ketiga (misalnya untuk withdrawal seller, refund manual, atau pembayaran mitra) melalui **Midtrans Payouts API (Iris)**.
+Selain menerima pembayaran, package ini bisa **mengirim dana keluar** ke rekening bank atau e-wallet pihak ketiga (misalnya untuk withdrawal seller, refund manual, atau pembayaran mitra) melalui **Midtrans Payouts API (Iris)** atau **Xendit Disbursement API**.
 
-> **Kenapa hanya Midtrans?** Stripe memiliki produk serupa (Global Payouts), tetapi saat ini hanya tersedia untuk akun pengirim yang berdomisili di **US/GB** — sehingga belum diimplementasikan. Vendor yang tidak mendukung disbursement akan melempar `DisbursementNotSupportedException`.
+> **Vendor yang didukung untuk disbursement:** `Midtrans` (maker-approver) dan `Xendit` (single-step / auto-process). Stripe memiliki produk serupa (Global Payouts) tetapi saat ini hanya untuk akun pengirim di **US/GB** sehingga belum diimplementasikan. Vendor yang tidak mendukung disbursement akan melempar `DisbursementNotSupportedException`.
 
 ### Konfigurasi
 
@@ -471,6 +623,33 @@ POST https://domain-kamu.com/webhooks/midtrans/payout
 
 Alur penanganannya sama dengan webhook lain (simpan ke `webhook_calls` → proses di queue). `MidtransPayoutSignatureValidator` memverifikasi header `Iris-Signature` (`SHA512(rawBody + merchantKey)`), lalu job `ProcessMidtransPayoutWebhookJob` mencari disbursement via `reference_no` dan memanggil `setDisbursementStatus()` yang men-dispatch event terkait. Status yang tidak dikenal tetap dibalas `200` dan diabaikan.
 
+### Disbursement via Xendit
+
+Xendit memproses payout **langsung (single-step)** — tidak ada tahap maker-approver. Cukup panggil `createDisbursement()` dengan `vendor: PaymentVendor::Xendit`; payout langsung dikirim, `reference_no` (id Xendit) tersimpan, dan status menjadi `processed`.
+
+```php
+$disbursement = PaymentModule::createDisbursement(new DisbursementData(
+    vendor: PaymentVendor::Xendit,
+    disbursement_code: 'DISB-2026-0001', // unik, dipakai sebagai idempotency key
+    amount: 150000,
+    beneficiary_name: 'Budi Santoso',
+    beneficiary_account: '1234567890',
+    beneficiary_bank: 'BCA',             // kode bank Xendit (BCA, BNI, MANDIRI, ...)
+    beneficiary_email: 'budi@email.com', // opsional
+    notes: 'Withdrawal saldo seller',    // opsional
+));
+```
+
+- Memakai kredensial yang sama dengan payment: `XENDIT_SECRET_KEY`.
+- `approveDisbursement()` / `rejectDisbursement()` **tidak berlaku** untuk Xendit (melempar `BadMethodCallException`) karena payout sudah diproses otomatis.
+- Daftarkan webhook callback disbursement di dashboard Xendit ke endpoint:
+
+```
+POST https://domain-kamu.com/webhooks/xendit/disbursement
+```
+
+  Diverifikasi dengan header `x-callback-token` (`XENDIT_WEBHOOK_TOKEN`). `ProcessXenditDisbursementWebhookJob` memetakan status `COMPLETED` → `completed` dan `FAILED` → `failed`, mencari disbursement via `id` (reference_no) atau `external_id` (disbursement_code).
+
 ### Helper & Event
 
 ```php
@@ -485,6 +664,18 @@ Disbursement::isFailed()->get();
 Event yang tersedia untuk di-listen: `DisbursementCreated`, `DisbursementGatewayProcessed`, `DisbursementCompleted`, `DisbursementFailed`.
 
 > **Catatan enum kustom:** jika kamu memakai enum vendor kustom (lihat [Menambah Vendor Baru](#menambah-vendor-baru-dengan-enum-kustom)), tambahkan juga method `getDisbursementProcessorClass(): ?string` di enum-mu — kembalikan `null` untuk vendor yang tidak mendukung disbursement.
+
+---
+
+## Keamanan Webhook & Disbursement
+
+Karena package ini menangani uang, beberapa proteksi diterapkan secara default (sejak v1.3.0):
+
+- **Signing secret wajib terisi.** Semua signature validator (Midtrans, Midtrans Payout, Stripe, Xendit) menolak callback bila secret/token-nya belum dikonfigurasi — mencegah pemalsuan webhook saat env masih kosong. Pastikan `MIDTRANS_SERVER_KEY`, `MIDTRANS_IRIS_MERCHANT_KEY`, `STRIPE_WEBHOOK_SECRET`, dan `XENDIT_WEBHOOK_TOKEN` terisi di production.
+- **Verifikasi nominal.** Notifikasi pembayaran `PAID` hanya diproses jika nominal yang dilaporkan gateway cocok dengan `total_amount` yang diharapkan. Nominal yang tidak cocok dicatat ke log dan diabaikan.
+- **Proteksi replay/idempoten.** Pembayaran/disbursement yang sudah berada di status terminal (`paid`/`failed`, `completed`/`failed`/`rejected`) tidak diproses ulang — webhook yang diulang tidak men-dispatch event ganda.
+- **Maker-approver (separation of duties).** Pengguna yang membuat disbursement tidak bisa menyetujui payout-nya sendiri; percobaan demikian melempar `DisbursementApprovalDeniedException`. Kolom `created_by`/`approved_by` mencatat jejaknya (terisi otomatis dari `auth()->id()` bila ada konteks autentikasi).
+- **Pesan error tidak bocor.** Aksi Approve/Reject di Filament menampilkan pesan generik ke operator dan mencatat detail exception ke log, alih-alih menampilkan pesan mentah dari gateway.
 
 ---
 
@@ -514,7 +705,9 @@ Empat resource langsung tersedia di panel admin:
 
 ## Menambah Vendor Baru dengan Enum Kustom
 
-Ini adalah fitur paling fleksibel dari package ini. Kamu bisa menambahkan integrasi ke payment gateway manapun — Xendit, Doku, Flip, dll. — tanpa mengubah satu baris pun dari kode inti package. Caranya adalah dengan membuat **enum PHP kustom** dan **model `PaymentMethod` kustom**, lalu mengarahkan config ke keduanya.
+Ini adalah fitur paling fleksibel dari package ini. Kamu bisa menambahkan integrasi ke payment gateway manapun — Doku, Flip, iPaymu, dll. — tanpa mengubah satu baris pun dari kode inti package. Caranya adalah dengan membuat **enum PHP kustom** dan **model `PaymentMethod` kustom**, lalu mengarahkan config ke keduanya.
+
+> **Catatan:** Midtrans, Stripe, dan **Xendit** kini sudah menjadi vendor **bawaan** (tidak perlu langkah di bawah). Contoh `Xendit` berikut tetap dipakai sebagai ilustrasi pola umum — terapkan pola yang sama untuk gateway lain yang belum didukung.
 
 Kunci dari mekanisme ini ada di sini: model `PaymentMethod` bawaan membaca `vendor_enum_class` dari config untuk menentukan enum mana yang dipakai sebagai cast kolom `vendor`. Ini berarti kamu bisa mengganti enum-nya tanpa menyentuh package sama sekali.
 

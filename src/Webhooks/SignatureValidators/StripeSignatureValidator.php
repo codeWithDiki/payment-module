@@ -12,6 +12,11 @@ class StripeSignatureValidator implements SignatureValidator
 {
     public function isValid(Request $request, WebhookConfig $config): bool
     {
+        // Refuse to validate when the webhook secret is unconfigured
+        if (empty(config('payment-module.stripe_webhook_secret'))) {
+            return false;
+        }
+
         try {
             Webhook::constructEvent(
                 $request->getContent(),

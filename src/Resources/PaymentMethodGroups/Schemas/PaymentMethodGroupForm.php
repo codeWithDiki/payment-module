@@ -14,26 +14,26 @@ class PaymentMethodGroupForm
     {
         return $schema
             ->components([
-                Section::make("Group Information")
+                Section::make('Group Information')
                     ->components([
-                        FileUpload::make("image_url")
-                            ->label("Image")
+                        FileUpload::make('image_url')
+                            ->label('Image')
                             ->image()
-                            ->directory("payment-method-groups"),
-                        TextInput::make("name")
+                            ->directory('payment-method-groups'),
+                        TextInput::make('name')
                             ->required()
                             ->lazy()
-                            ->afterStateUpdated(fn (string $state, callable $set) => $set("slug", str()->slug($state)))
-                            ->label("Name"),
-                        TextInput::make("slug")
+                            ->afterStateUpdated(fn (string $state, callable $set) => $set('slug', str()->slug($state)))
+                            ->label('Name'),
+                        TextInput::make('slug')
                             ->required()
-                            ->label("Slug"),
-                        Toggle::make("is_active")
-                            ->label("Is Active")
+                            ->label('Slug'),
+                        Toggle::make('is_active')
+                            ->label('Is Active')
                             ->default(false),
                     ])
                     ->columns(1)
-                    ->aside()
+                    ->aside(),
             ])
             ->columns(1);
     }

@@ -5,7 +5,6 @@ namespace CodeWithDiki\PaymentModule\Events;
 use CodeWithDiki\PaymentModule\Models\Payment;
 use Illuminate\Broadcasting\Channel;
 use Illuminate\Broadcasting\InteractsWithSockets;
-use Illuminate\Broadcasting\PresenceChannel;
 use Illuminate\Broadcasting\PrivateChannel;
 use Illuminate\Contracts\Broadcasting\ShouldBroadcast;
 use Illuminate\Foundation\Events\Dispatchable;
@@ -20,8 +19,7 @@ class PaymentGatewayProcessed implements ShouldBroadcast
      */
     public function __construct(
         public Payment $payment
-    )
-    {
+    ) {
         //
     }
 
@@ -41,5 +39,4 @@ class PaymentGatewayProcessed implements ShouldBroadcast
     {
         return 'cwd.payment-module.payment-gateway-processed';
     }
-
 }

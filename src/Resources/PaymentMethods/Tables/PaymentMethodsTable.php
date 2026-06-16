@@ -18,7 +18,7 @@ class PaymentMethodsTable
         return $table
             ->columns([
                 TextColumn::make('paymentMethodGroup.name')
-                    ->label("Group")
+                    ->label('Group')
                     ->numeric()
                     ->sortable(),
                 TextColumn::make('name')

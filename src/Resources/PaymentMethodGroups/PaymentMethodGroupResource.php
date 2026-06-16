@@ -2,6 +2,8 @@
 
 namespace CodeWithDiki\PaymentModule\Resources\PaymentMethodGroups;
 
+use BackedEnum;
+use CodeWithDiki\PaymentModule\Models\PaymentMethodGroup;
 use CodeWithDiki\PaymentModule\Resources\PaymentMethodGroups\Pages\CreatePaymentMethodGroup;
 use CodeWithDiki\PaymentModule\Resources\PaymentMethodGroups\Pages\EditPaymentMethodGroup;
 use CodeWithDiki\PaymentModule\Resources\PaymentMethodGroups\Pages\ListPaymentMethodGroups;
@@ -9,8 +11,6 @@ use CodeWithDiki\PaymentModule\Resources\PaymentMethodGroups\Pages\ViewPaymentMe
 use CodeWithDiki\PaymentModule\Resources\PaymentMethodGroups\Schemas\PaymentMethodGroupForm;
 use CodeWithDiki\PaymentModule\Resources\PaymentMethodGroups\Schemas\PaymentMethodGroupInfolist;
 use CodeWithDiki\PaymentModule\Resources\PaymentMethodGroups\Tables\PaymentMethodGroupsTable;
-use BackedEnum;
-use CodeWithDiki\PaymentModule\Models\PaymentMethodGroup;
 use Filament\Resources\Resource;
 use Filament\Schemas\Schema;
 use Filament\Support\Icons\Heroicon;
@@ -26,7 +26,7 @@ class PaymentMethodGroupResource extends Resource
 
     protected static ?string $recordTitleAttribute = 'name';
 
-    public static function getModel() : string
+    public static function getModel(): string
     {
         return config('payment-module.payment_method_group_class', PaymentMethodGroup::class);
     }
