@@ -43,7 +43,7 @@ class PaymentMethod extends Model
      */
     public function calculateFee(float $amount): float
     {
-        return round((float) $this->fee_flat + ($amount * (float) $this->fee_percentage / 100), 2);
+        return round((float) $this->fee_flat + ($amount * (float) $this->fee_percentage / 100));
     }
 
     public function paymentMethodGroup(): BelongsTo

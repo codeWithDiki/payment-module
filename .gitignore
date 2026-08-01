@@ -32,3 +32,4 @@ testbench.yaml
 /coverage
 .DS_Store
 /graphify-out
+/.opencode
