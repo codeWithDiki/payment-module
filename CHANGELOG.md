@@ -8,6 +8,33 @@ Setiap rilis ditandai dengan git tag `vX.Y.Z` (mis. `v1.3.0`).
 
 ## [Unreleased]
 
+## [1.4.0] - 2026-08-02
+
+Rilis ini menambahkan **DOKU** sebagai vendor bawaan, mencakup pembayaran lewat **SNAP Direct API**
+dan payout lewat **Kirim DOKU**.
+
+> ⚠️ **Rilis ini mengubah skema database.** Lihat [Upgrade dari 1.3.x ke 1.4.0](README.md#upgrade-dari-13x-ke-140) di README untuk langkah migrasi.
+
+### Added
+
+- **DOKU — Payment** (SNAP Direct API): Virtual Account (11 bank), e-wallet (OVO/DANA/ShopeePay), dan QRIS. Vendor baru `PaymentVendor::Doku`. Channel memakai kode channel DOKU sendiri (mis. `VIRTUAL_ACCOUNT_BCA`, `EMONEY_OVO`), dan prefix VA per bank disimpan di `meta_data.partner_service_id` pada payment method.
+- **DOKU — Disbursement/Payout** (Kirim DOKU): payout single-step yang menjalankan Account Inquiry lebih dulu karena `sessionId` hasil inquiry wajib ada di `transfer-bank`. Butuh approval regulator ASPI sebelum live.
+- Webhook DOKU otomatis terdaftar di `POST /webhooks/doku` dan `POST /webhooks/doku/disbursement`, diverifikasi lewat header `X-SIGNATURE` (HMAC-SHA512).
+- `Supports\Doku\SnapClient`: access token B2B (asimetris SHA256withRSA, di-cache selama masa berlakunya) dan penandatanganan request simetris HMAC-SHA512, dipakai bersama oleh sisi payment dan disbursement.
+- Kolom `beneficiary_phone` pada `disbursements`, wajib oleh Kirim DOKU dan diabaikan vendor lain; tersedia juga sebagai field opsional di `DisbursementData`.
+- Accessor `Payment::getDokuVirtualAccountNumber()` dan `Payment::getDokuQrString()`.
+- Konfigurasi baru: `doku_client_id`, `doku_client_secret`, `doku_private_key`, `doku_is_production`, `doku_sender_name`, `doku_sender_phone`, `doku_sender_personal_id`, `doku_sender_personal_id_type`, `doku_sender_country_code`.
+
+### Changed
+
+- Semua gateway (Midtrans, Stripe, Xendit, DOKU) menagih **`total_amount`** (amount + fee), bukan `amount` saja.
+- Helper test DOKU dipindah ke `tests/Pest.php` agar tersedia lintas file test, karena PHPUnit dijalankan dengan urutan acak.
+
+### Security
+
+- **Webhook ditolak bila signing secret belum dikonfigurasi** — kini termasuk DOKU (`doku_client_secret`).
+- **Verifikasi nominal webhook** juga diterapkan pada notifikasi DOKU sebelum menandai pembayaran `paid`.
+
 ## [1.3.0] - 2026-06-16
 
 Rilis ini menambahkan **Xendit** sebagai vendor bawaan, **sistem fee otomatis** per
@@ -45,6 +72,7 @@ Baseline sebelum changelog ini mulai dicatat. Mendukung Midtrans (GoPay, ShopeeP
 bank transfer), Stripe (Checkout Session), Offline, disbursement via Midtrans Payouts (Iris),
 dan panel admin Filament. Riwayat rilis lama tersedia di [git tags](../../tags) (`v1.1.x`–`v1.2.0`).
 
-[Unreleased]: ../../compare/v1.3.0...HEAD
+[Unreleased]: ../../compare/v1.4.0...HEAD
+[1.4.0]: ../../compare/v1.3.0...v1.4.0
 [1.3.0]: ../../compare/v1.2.0...v1.3.0
 [1.2.0]: ../../releases/tag/v1.2.0

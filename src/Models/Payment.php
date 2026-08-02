@@ -103,6 +103,28 @@ class Payment extends Model
         return null;
     }
 
+    public function getDokuVirtualAccountNumber(): ?string
+    {
+        if ($this->paymentMethod->vendor !== PaymentVendor::Doku) {
+            return null;
+        }
+
+        return $this->payment_response['virtualAccountData']['virtualAccountNo'] ?? null;
+    }
+
+    /**
+     * Raw EMV payload for a DOKU QRIS transaction. DOKU returns the QR content as a string
+     * to be rendered client side, not as an image URL, so getQrCodeUrl() does not apply.
+     */
+    public function getDokuQrString(): ?string
+    {
+        if ($this->paymentMethod->vendor !== PaymentVendor::Doku) {
+            return null;
+        }
+
+        return $this->payment_response['qrContent'] ?? null;
+    }
+
     public function getMidtransVirtualAccountNumber(): ?string
     {
         if ($this->paymentMethod->vendor == PaymentVendor::Midtrans) {

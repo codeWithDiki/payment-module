@@ -88,6 +88,7 @@ class PaymentModule
             'beneficiary_account' => $data->beneficiary_account,
             'beneficiary_bank' => $data->beneficiary_bank,
             'beneficiary_email' => $data->beneficiary_email,
+            'beneficiary_phone' => $data->beneficiary_phone,
             'amount' => $data->amount,
             'notes' => $data->notes,
             'status' => Enums\DisbursementStatus::PENDING,

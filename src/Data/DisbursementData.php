@@ -16,6 +16,7 @@ class DisbursementData extends Data
         public string $beneficiary_account,
         public string $beneficiary_bank,
         public ?string $beneficiary_email = null,
+        public ?string $beneficiary_phone = null,
         public ?string $notes = null,
         public ?Model $disbursable = null,
     ) {}

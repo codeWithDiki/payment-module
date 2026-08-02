@@ -21,6 +21,7 @@ use Illuminate\Support\Carbon;
  * @property string $beneficiary_account
  * @property string $beneficiary_bank
  * @property string|null $beneficiary_email
+ * @property string|null $beneficiary_phone
  * @property float $amount
  * @property string|null $notes
  * @property DisbursementStatus $status

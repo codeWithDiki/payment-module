@@ -18,6 +18,8 @@ return new class extends Migration
             $table->string('beneficiary_account');
             $table->string('beneficiary_bank');
             $table->string('beneficiary_email')->nullable();
+            // Required by Kirim DOKU (DOKU) payouts; unused by other vendors
+            $table->string('beneficiary_phone')->nullable();
             $table->double('amount');
             $table->string('notes')->nullable();
             $table->string('status');

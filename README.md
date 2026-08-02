@@ -4,11 +4,11 @@ Membangun sistem pembayaran dari nol di setiap proyek Laravel itu melelahkan. Ka
 
 Package ini adalah lapisan abstraksi di atas berbagai payment gateway. Kamu cukup panggil `PaymentModule::createPayment()`, dan semua proses di belakangnya — mulai dari charge ke gateway, menyimpan response, sampai men-dispatch event — ditangani secara otomatis. Arsitektur **event-driven** yang digunakan juga memastikan kamu tetap bisa menyesuaikan perilaku di setiap titik tanpa menyentuh kode inti package.
 
-Saat ini mendukung **Midtrans** (GoPay, ShopeePay, QRIS), **Stripe** (Checkout Session), **Xendit** (Virtual Account, e-wallet, QRIS), dan **Offline** secara bawaan, dengan panel admin berbasis **Filament** yang siap pakai. Selain menerima pembayaran, package ini juga mendukung **disbursement** (kirim dana ke rekening pihak ketiga) via **Midtrans Payouts (Iris)** dan **Xendit Disbursement**.
+Saat ini mendukung **Midtrans** (GoPay, ShopeePay, QRIS), **Stripe** (Checkout Session), **Xendit** (Virtual Account, e-wallet, QRIS), **DOKU** (SNAP Direct API: Virtual Account, e-wallet, QRIS), dan **Offline** secara bawaan, dengan panel admin berbasis **Filament** yang siap pakai. Selain menerima pembayaran, package ini juga mendukung **disbursement** (kirim dana ke rekening pihak ketiga) via **Midtrans Payouts (Iris)**, **Xendit Disbursement**, dan **Kirim DOKU**.
 
 Setiap payment method bisa dikenakan **fee otomatis** (flat + persentase) yang ditambahkan ke tagihan pelanggan.
 
-> **Versi:** project ini mengikuti [Semantic Versioning](https://semver.org/lang/id/) dan ditandai lewat git tag `vX.Y.Z`. Dukungan Xendit & sistem fee diperkenalkan di **v1.3.0** — lihat [CHANGELOG](CHANGELOG.md) dan [Upgrade dari 1.2.x ke 1.3.0](#upgrade-dari-12x-ke-130).
+> **Versi:** project ini mengikuti [Semantic Versioning](https://semver.org/lang/id/) dan ditandai lewat git tag `vX.Y.Z`. Dukungan DOKU diperkenalkan di **v1.4.0** — lihat [CHANGELOG](CHANGELOG.md) dan [Upgrade dari 1.3.x ke 1.4.0](#upgrade-dari-13x-ke-140). Dukungan Xendit & sistem fee diperkenalkan di **v1.3.0** ([Upgrade dari 1.2.x ke 1.3.0](#upgrade-dari-12x-ke-130)).
 
 ---
 
@@ -16,6 +16,7 @@ Setiap payment method bisa dikenakan **fee otomatis** (flat + persentase) yang d
 
 - [Persyaratan](#persyaratan)
 - [Instalasi](#instalasi)
+- [Upgrade dari 1.3.x ke 1.4.0](#upgrade-dari-13x-ke-140)
 - [Upgrade dari 1.2.x ke 1.3.0](#upgrade-dari-12x-ke-130)
 - [Konfigurasi](#konfigurasi)
 - [Setup Payment Method](#setup-payment-method)
@@ -25,6 +26,7 @@ Setiap payment method bisa dikenakan **fee otomatis** (flat + persentase) yang d
 - [Webhook Midtrans](#webhook-midtrans)
 - [Webhook Stripe](#webhook-stripe)
 - [Webhook Xendit](#webhook-xendit)
+- [Webhook DOKU](#webhook-doku)
 - [Disbursement (Payout)](#disbursement-payout)
 - [Keamanan Webhook & Disbursement](#keamanan-webhook--disbursement)
 - [Integrasi Filament](#integrasi-filament)
@@ -94,6 +96,36 @@ Publish file konfigurasi:
 ```bash
 php artisan vendor:publish --tag="payment-module-config"
 ```
+
+---
+
+## Upgrade dari 1.3.x ke 1.4.0
+
+Versi **1.4.0** menambah satu kolom baru, dipakai oleh payout DOKU:
+
+| Tabel | Kolom baru | Keterangan |
+|-------|------------|------------|
+| `disbursements` | `beneficiary_phone` | Nomor HP penerima, wajib oleh Kirim DOKU (default `null`) |
+
+**Instalasi baru:** tidak ada langkah tambahan — migrasi bawaan sudah menyertakan kolom di atas.
+
+**Instalasi lama:** buat satu migration untuk meng-`ALTER` tabel yang sudah ada:
+
+```php
+public function up(): void
+{
+    Schema::table('disbursements', function (Blueprint $table) {
+        $table->string('beneficiary_phone')->nullable()->after('beneficiary_email');
+    });
+}
+
+public function down(): void
+{
+    Schema::table('disbursements', fn (Blueprint $t) => $t->dropColumn('beneficiary_phone'));
+}
+```
+
+Kalau kamu tidak memakai DOKU untuk disbursement, kolom ini boleh dibiarkan kosong — vendor lain mengabaikannya.
 
 ---
 
@@ -205,6 +237,21 @@ return [
     'xendit_success_redirect_url' => env('XENDIT_SUCCESS_REDIRECT_URL', ''),
     'xendit_failure_redirect_url' => env('XENDIT_FAILURE_REDIRECT_URL', ''),
 
+    // DOKU
+    'doku_client_id'     => env('DOKU_CLIENT_ID', ''),
+    'doku_client_secret' => env('DOKU_CLIENT_SECRET', ''),
+    // Private key RSA yang pasangan public key-nya didaftarkan di dashboard DOKU.
+    // Boleh berupa PEM inline atau "file:///path/to/private.key".
+    'doku_private_key'   => env('DOKU_PRIVATE_KEY', ''),
+    'doku_is_production' => env('DOKU_IS_PRODUCTION', false),
+
+    // DOKU payout (Kirim DOKU) — identitas pengirim, wajib oleh transfer-bank
+    'doku_sender_name'             => env('DOKU_SENDER_NAME', ''),
+    'doku_sender_phone'            => env('DOKU_SENDER_PHONE', ''),
+    'doku_sender_personal_id'      => env('DOKU_SENDER_PERSONAL_ID', ''),
+    'doku_sender_personal_id_type' => env('DOKU_SENDER_PERSONAL_ID_TYPE', 'KTP'),
+    'doku_sender_country_code'     => env('DOKU_SENDER_COUNTRY_CODE', 'ID'),
+
     // Webhook
     'webhook' => [
         'prefix'             => 'webhooks',
@@ -239,7 +286,20 @@ XENDIT_WEBHOOK_TOKEN=your-callback-verification-token
 XENDIT_IS_PRODUCTION=false
 XENDIT_SUCCESS_REDIRECT_URL="https://domain-kamu.com/payments/{payment_code}/success"
 XENDIT_FAILURE_REDIRECT_URL="https://domain-kamu.com/payments/{payment_code}/failure"
+
+DOKU_CLIENT_ID=MCH-0001-xxxxxxxxxx
+DOKU_CLIENT_SECRET=SK-xxxxxxxxxxxx
+DOKU_PRIVATE_KEY="file:///etc/secrets/doku-private.key"
+DOKU_IS_PRODUCTION=false
+
+DOKU_SENDER_NAME="Toko Makmur"
+DOKU_SENDER_PHONE=628111111111
+DOKU_SENDER_PERSONAL_ID=3175000000000001
+DOKU_SENDER_PERSONAL_ID_TYPE=KTP
+DOKU_SENDER_COUNTRY_CODE=ID
 ```
+
+> **DOKU memakai dua signature sekaligus.** Access token B2B ditandatangani **asimetris** (SHA256withRSA) memakai `DOKU_PRIVATE_KEY`, sedangkan setiap request transaksional ditandatangani **simetris** (HMAC-SHA512) memakai `DOKU_CLIENT_SECRET`. Generate keypair-nya dengan `openssl genrsa -out private.key 2048` lalu `openssl rsa -in private.key -pubout -out public.pem`, dan upload `public.pem` ke dashboard DOKU.
 
 ---
 
@@ -302,11 +362,28 @@ PaymentModule::createPaymentMethod(new PaymentMethodData(
 | `Midtrans` | `gopay`, `shopee_pay`, `qris`, `permata`, `bca`, `bni`, `bri`, `bsi`, `mandiri` |
 | `Stripe` | `card`, `link`, `alipay`, `wechat_pay` |
 | `Xendit` | `BCA`, `BNI`, `BRI`, `MANDIRI`, `PERMATA`, `BSI` (Virtual Account); `ID_OVO`, `ID_DANA`, `ID_LINKAJA`, `ID_SHOPEEPAY` (e-wallet); `QRIS` |
+| `Doku` | `VIRTUAL_ACCOUNT_BCA`, `VIRTUAL_ACCOUNT_BNI`, `VIRTUAL_ACCOUNT_BRI`, `VIRTUAL_ACCOUNT_BANK_MANDIRI`, `VIRTUAL_ACCOUNT_BANK_PERMATA`, `VIRTUAL_ACCOUNT_BANK_CIMB`, `VIRTUAL_ACCOUNT_BANK_SYARIAH_MANDIRI`, `VIRTUAL_ACCOUNT_BANK_DANAMON`, `VIRTUAL_ACCOUNT_BNC`, `VIRTUAL_ACCOUNT_BTN`, `VIRTUAL_ACCOUNT_DOKU` (Virtual Account); `EMONEY_OVO`, `EMONEY_DANA`, `EMONEY_SHOPEEPAY` (e-wallet); `QRIS` |
 | `Offline` | `bank_transfer`, `cstore`, `offline`, `offline_qris` |
 
 > Channel `permata`, `bca`, `bni`, `bri`, `bsi`, dan `mandiri` diproses sebagai **bank transfer** via Midtrans.
 >
 > Untuk **Xendit**, channel `QRIS` membuat QR dinamis, channel `ID_*` membuat e-wallet charge, dan sisanya (kode bank) membuat **closed Virtual Account**.
+
+> Untuk **DOKU**, channel yang dipakai adalah **kode channel DOKU itu sendiri**, sehingga langsung diteruskan sebagai `additionalInfo.channel`. Channel `QRIS` membuat QR dinamis, channel `EMONEY_*` membuat e-wallet charge, dan channel `VIRTUAL_ACCOUNT_*` membuat **closed Virtual Account**.
+>
+> Khusus Virtual Account, DOKU memberi setiap merchant sebuah **prefix VA (`partnerServiceId`) yang berbeda per bank**. Simpan prefix itu di kolom `meta_data` payment method — tidak ada config tambahan:
+>
+> ```php
+> PaymentMethod::create([
+>     'name'      => 'DOKU BCA Virtual Account',
+>     'vendor'    => PaymentVendor::Doku,
+>     'channel'   => 'VIRTUAL_ACCOUNT_BCA',
+>     'is_active' => true,
+>     'meta_data' => ['partner_service_id' => '19008'], // dari dashboard DOKU
+> ]);
+> ```
+>
+> Nomor VA-nya digenerate DOKU (mode *DOKU Generated Payment Code*) dan bisa dibaca lewat `$payment->getDokuVirtualAccountNumber()`. Untuk QRIS, isi EMV-nya ada di `$payment->getDokuQrString()` — DOKU mengembalikan string QR, bukan URL gambar, jadi render sendiri di sisi klien.
 
 ---
 
@@ -526,7 +603,7 @@ Ubah prefix atau hapus middleware CSRF via config:
 ],
 ```
 
-Package mendaftarkan lima profil webhook-client secara otomatis: `payment-module-midtrans`, `payment-module-midtrans-payout`, `payment-module-stripe`, `payment-module-xendit`, dan `payment-module-xendit-disbursement`. Profil milik aplikasimu sendiri di `config/webhook-client.php` tetap dipertahankan (profil tanpa `process_webhook_job` diabaikan karena tidak valid). Webhook lama otomatis dibersihkan oleh webhook-client setelah 30 hari (atur via config `webhook-client.delete_after_days` + jadwalkan `php artisan model:prune`).
+Package mendaftarkan tujuh profil webhook-client secara otomatis: `payment-module-midtrans`, `payment-module-midtrans-payout`, `payment-module-stripe`, `payment-module-xendit`, `payment-module-xendit-disbursement`, `payment-module-doku`, dan `payment-module-doku-disbursement`. Profil milik aplikasimu sendiri di `config/webhook-client.php` tetap dipertahankan (profil tanpa `process_webhook_job` diabaikan karena tidak valid). Webhook lama otomatis dibersihkan oleh webhook-client setelah 30 hari (atur via config `webhook-client.delete_after_days` + jadwalkan `php artisan model:prune`).
 
 ---
 
@@ -549,11 +626,32 @@ Xendit mengautentikasi callback lewat header **`x-callback-token`** (token stati
 
 ---
 
+## Webhook DOKU
+
+Route webhook DOKU juga didaftarkan otomatis. Dengan konfigurasi default, endpoint pembayaran-nya:
+
+```
+POST https://domain-kamu.com/webhooks/doku
+```
+
+Daftarkan URL tersebut sebagai **Notification URL** di dashboard DOKU (Integration → Notification URL), lalu pastikan `DOKU_CLIENT_SECRET` terisi.
+
+DOKU menandatangani notifikasi dengan **HMAC-SHA512** di header `X-SIGNATURE`, dihitung atas `METHOD:path:accessToken:hex(sha256(body)):timestamp` — perhatikan bahwa `path` di sini adalah path Notification URL **kita**, bukan path DOKU. `DokuSnapSignatureValidator` menghitung ulang signature itu dan membandingkannya secara timing-safe; bila `DOKU_CLIENT_SECRET` belum diisi, semua notifikasi ditolak. Lalu `ProcessDokuWebhookJob`:
+
+1. Menormalkan payload lintas produk — Virtual Account memakai `trxId`, e-wallet dan QRIS memakai `originalPartnerReferenceNo`; keduanya berisi `payment_code`.
+2. Memetakan status ke `PaymentStatus` (`latestTransactionStatus` `00` → `PAID`, `04`/`05`/`06` → `FAILED`, `03` diabaikan karena masih pending; notifikasi VA yang membawa `paidAmount` dianggap `PAID`).
+3. **Memverifikasi nominal** notifikasi terhadap `total_amount` sebelum menandai `PAID`.
+4. Memanggil `setPaymentStatus()`.
+
+> **Catatan integrasi.** Dokumentasi DOKU menyertakan *access token* di dalam string yang ditandatangani, tapi tidak menjelaskan token mana yang mereka pakai saat menandatangani notifikasi **ke** kita. Validator karenanya mencoba access token B2B yang sedang di-cache dan juga token kosong — keduanya tetap memerlukan client secret, jadi ini tidak melemahkan verifikasi. Konfirmasikan perilaku sebenarnya terhadap sandbox DOKU saat integration testing, lalu hapus kandidat yang tidak terpakai di `DokuSnapSignatureValidator`.
+
+---
+
 ## Disbursement (Payout)
 
 Selain menerima pembayaran, package ini bisa **mengirim dana keluar** ke rekening bank atau e-wallet pihak ketiga (misalnya untuk withdrawal seller, refund manual, atau pembayaran mitra) melalui **Midtrans Payouts API (Iris)** atau **Xendit Disbursement API**.
 
-> **Vendor yang didukung untuk disbursement:** `Midtrans` (maker-approver) dan `Xendit` (single-step / auto-process). Stripe memiliki produk serupa (Global Payouts) tetapi saat ini hanya untuk akun pengirim di **US/GB** sehingga belum diimplementasikan. Vendor yang tidak mendukung disbursement akan melempar `DisbursementNotSupportedException`.
+> **Vendor yang didukung untuk disbursement:** `Midtrans` (maker-approver), `Xendit` (single-step / auto-process), dan `Doku` (single-step, tapi wajib Account Inquiry sebelum transfer). Stripe memiliki produk serupa (Global Payouts) tetapi saat ini hanya untuk akun pengirim di **US/GB** sehingga belum diimplementasikan. Vendor yang tidak mendukung disbursement akan melempar `DisbursementNotSupportedException`.
 
 ### Konfigurasi
 
@@ -652,6 +750,39 @@ POST https://domain-kamu.com/webhooks/xendit/disbursement
 
   Diverifikasi dengan header `x-callback-token` (`XENDIT_WEBHOOK_TOKEN`). `ProcessXenditDisbursementWebhookJob` memetakan status `COMPLETED` → `completed` dan `FAILED` → `failed`, mencari disbursement via `id` (reference_no) atau `external_id` (disbursement_code).
 
+### Disbursement via DOKU (Kirim DOKU)
+
+Kirim DOKU juga memproses payout **langsung (single-step)**, tapi DOKU **mewajibkan Account Inquiry sebelum setiap transfer** — `sessionId` yang dikembalikan inquiry adalah field wajib di `transfer-bank`. Karena itu satu payout selalu dua panggilan API, dan `DokuKirim` menjalankan keduanya secara berurutan di dalam `processDisbursement()`.
+
+```php
+$disbursement = PaymentModule::createDisbursement(new DisbursementData(
+    vendor: PaymentVendor::Doku,
+    disbursement_code: 'DISB-2026-0001',
+    amount: 150000,
+    beneficiary_name: 'Budi Santoso',   // dipecah jadi first/last name untuk DOKU
+    beneficiary_account: '1234567890',
+    beneficiary_bank: '014',            // kode bank NUMERIK DOKU, bukan 'BCA'
+    beneficiary_email: 'budi@email.com',
+    beneficiary_phone: '628121212121',  // wajib untuk DOKU
+    notes: 'Withdrawal saldo seller',
+));
+```
+
+- **`beneficiary_bank` memakai kode bank numerik**, berbeda dari vendor lain di package ini: `002` BRI, `008` Mandiri, `009` BNI, `011` Danamon, `013` Permata, `014` BCA, `022` CIMB Niaga. Daftar lengkapnya ada di [dokumentasi Kirim DOKU](https://developers.doku.com/payout/kirim-doku).
+- **`beneficiary_phone` wajib diisi** — DOKU menolak transfer tanpa nomor HP penerima.
+- Identitas pengirim bersifat konstan per-merchant dan diambil dari config, bukan per-payout: `DOKU_SENDER_NAME`, `DOKU_SENDER_PHONE`, `DOKU_SENDER_PERSONAL_ID`, `DOKU_SENDER_PERSONAL_ID_TYPE`, `DOKU_SENDER_COUNTRY_CODE`.
+- Bila Account Inquiry gagal, disbursement langsung ditandai `failed` dan **transfer tidak pernah dikirim** — tidak ada dana yang bergerak.
+- `approveDisbursement()` / `rejectDisbursement()` **tidak berlaku** untuk DOKU (melempar `BadMethodCallException`).
+- Daftarkan notification URL payout di dashboard DOKU ke endpoint:
+
+```
+POST https://domain-kamu.com/webhooks/doku/disbursement
+```
+
+  Diverifikasi dengan `X-SIGNATURE` (HMAC-SHA512, sama seperti webhook pembayaran). `ProcessDokuDisbursementWebhookJob` memetakan `latestTransactionStatus` `00` → `completed` dan `05`/`06` → `failed`, mencari disbursement via `originalReferenceNo` (reference_no) atau `originalPartnerReferenceNo` (disbursement_code).
+
+> ⚠️ **Kirim DOKU butuh approval regulator sebelum bisa live.** DOKU mensyaratkan persetujuan **ASPI** — meliputi functionality test di sandbox dan developer site test lewat portal ASPI — sebelum merchant boleh memakai Kirim DOKU di production. Koordinasikan dengan tim Sales dan Integration DOKU. Ini murni urusan onboarding merchant, bukan kode.
+
 ### Helper & Event
 
 ```php
@@ -673,7 +804,7 @@ Event yang tersedia untuk di-listen: `DisbursementCreated`, `DisbursementGateway
 
 Karena package ini menangani uang, beberapa proteksi diterapkan secara default (sejak v1.3.0):
 
-- **Signing secret wajib terisi.** Semua signature validator (Midtrans, Midtrans Payout, Stripe, Xendit) menolak callback bila secret/token-nya belum dikonfigurasi — mencegah pemalsuan webhook saat env masih kosong. Pastikan `MIDTRANS_SERVER_KEY`, `MIDTRANS_IRIS_MERCHANT_KEY`, `STRIPE_WEBHOOK_SECRET`, dan `XENDIT_WEBHOOK_TOKEN` terisi di production.
+- **Signing secret wajib terisi.** Semua signature validator (Midtrans, Midtrans Payout, Stripe, Xendit, DOKU) menolak callback bila secret/token-nya belum dikonfigurasi — mencegah pemalsuan webhook saat env masih kosong. Pastikan `MIDTRANS_SERVER_KEY`, `MIDTRANS_IRIS_MERCHANT_KEY`, `STRIPE_WEBHOOK_SECRET`, `XENDIT_WEBHOOK_TOKEN`, dan `DOKU_CLIENT_SECRET` terisi di production.
 - **Verifikasi nominal.** Notifikasi pembayaran `PAID` hanya diproses jika nominal yang dilaporkan gateway cocok dengan `total_amount` yang diharapkan. Nominal yang tidak cocok dicatat ke log dan diabaikan.
 - **Proteksi replay/idempoten.** Pembayaran/disbursement yang sudah berada di status terminal (`paid`/`failed`, `completed`/`failed`/`rejected`) tidak diproses ulang — webhook yang diulang tidak men-dispatch event ganda.
 - **Maker-approver (separation of duties).** Pengguna yang membuat disbursement tidak bisa menyetujui payout-nya sendiri; percobaan demikian melempar `DisbursementApprovalDeniedException`. Kolom `created_by`/`approved_by` mencatat jejaknya (terisi otomatis dari `auth()->id()` bila ada konteks autentikasi).
@@ -709,7 +840,7 @@ Empat resource langsung tersedia di panel admin:
 
 Ini adalah fitur paling fleksibel dari package ini. Kamu bisa menambahkan integrasi ke payment gateway manapun — Doku, Flip, iPaymu, dll. — tanpa mengubah satu baris pun dari kode inti package. Caranya adalah dengan membuat **enum PHP kustom** dan **model `PaymentMethod` kustom**, lalu mengarahkan config ke keduanya.
 
-> **Catatan:** Midtrans, Stripe, dan **Xendit** kini sudah menjadi vendor **bawaan** (tidak perlu langkah di bawah). Contoh `Xendit` berikut tetap dipakai sebagai ilustrasi pola umum — terapkan pola yang sama untuk gateway lain yang belum didukung.
+> **Catatan:** Midtrans, Stripe, **Xendit**, dan **DOKU** kini sudah menjadi vendor **bawaan** (tidak perlu langkah di bawah). Contoh `Xendit` berikut tetap dipakai sebagai ilustrasi pola umum — terapkan pola yang sama untuk gateway lain yang belum didukung, misalnya Flip atau iPaymu.
 
 Kunci dari mekanisme ini ada di sini: model `PaymentMethod` bawaan membaca `vendor_enum_class` dari config untuk menentukan enum mana yang dipakai sebagai cast kolom `vendor`. Ini berarti kamu bisa mengganti enum-nya tanpa menyentuh package sama sekali.
 
@@ -935,10 +1066,21 @@ $payment->paymentMethod->vendor->getPaymentProcessorClass()
         │       ├── Dispatch PaymentGatewayProcessed
         │       └── getStripeCheckoutUrl() → URL hosted checkout untuk redirect
         │
+        ├── PaymentVendor::Xendit → Xendit::processPayment()
+        │       ├── QRIS / e-wallet charge / closed Virtual Account via Xendit API
+        │       ├── Simpan response ke payment record
+        │       └── Dispatch PaymentGatewayProcessed
+        │
+        ├── PaymentVendor::Doku → Doku::processPayment()
+        │       ├── SnapClient: access token B2B (cached) + tanda tangan HMAC-SHA512
+        │       ├── QRIS / e-wallet charge / closed Virtual Account via DOKU SNAP API
+        │       ├── getDokuVirtualAccountNumber() → Nomor VA hasil generate DOKU
+        │       └── getDokuQrString() → Isi EMV QRIS untuk dirender di klien
+        │
         ├── PaymentVendor::Offline → Offline::processPayment()
         │       └── setPaymentStatus(PAID) → Dispatch PaymentPaid
         │
-        └── VendorKustom::Xendit → XenditProcessor::processPayment()
+        └── VendorKustom::Flip → FlipProcessor::processPayment()
                 └── (logika kustom kamu)
 ```
 
@@ -972,7 +1114,7 @@ $payment->paymentMethod->vendor->getPaymentProcessorClass()
 | `approveDisbursement(Disbursement $d)` | `Disbursement` | Approve payout via API approver |
 | `rejectDisbursement(Disbursement $d, ?string $reason)` | `Disbursement` | Reject payout via API approver |
 | `getDisbursementByCode(string $code)` | `?Disbursement` | Cari payout berdasarkan disbursement code |
-| `getDisbursementByReferenceNo(string $ref)` | `?Disbursement` | Cari payout berdasarkan reference number Midtrans |
+| `getDisbursementByReferenceNo(string $ref)` | `?Disbursement` | Cari payout berdasarkan reference number gateway (Midtrans, Xendit, atau DOKU) |
 
 ### `PaymentData` — Parameter Pembayaran
 

@@ -51,6 +51,22 @@ return [
     'xendit_success_redirect_url' => env('XENDIT_SUCCESS_REDIRECT_URL', ''),
     'xendit_failure_redirect_url' => env('XENDIT_FAILURE_REDIRECT_URL', ''),
 
+    /** Doku Config */
+    'doku_client_id' => env('DOKU_CLIENT_ID', ''),
+    'doku_client_secret' => env('DOKU_CLIENT_SECRET', ''),
+    // RSA private key whose public half is registered in the DOKU dashboard, used to sign
+    // the B2B access token request. Either an inline PEM or a "file:///path/to/private.key".
+    'doku_private_key' => env('DOKU_PRIVATE_KEY', ''),
+    'doku_is_production' => env('DOKU_IS_PRODUCTION', false),
+
+    /** Doku Payout (Kirim DOKU) sender identity — constant per merchant, required by transfer-bank */
+    'doku_sender_name' => env('DOKU_SENDER_NAME', ''),
+    // Sender account number in phone number format (customerNumber)
+    'doku_sender_phone' => env('DOKU_SENDER_PHONE', ''),
+    'doku_sender_personal_id' => env('DOKU_SENDER_PERSONAL_ID', ''),
+    'doku_sender_personal_id_type' => env('DOKU_SENDER_PERSONAL_ID_TYPE', 'KTP'),
+    'doku_sender_country_code' => env('DOKU_SENDER_COUNTRY_CODE', 'ID'),
+
     'vendor_enum_class' => PaymentVendor::class,
 
     'webhook' => [

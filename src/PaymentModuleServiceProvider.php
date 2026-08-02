@@ -62,6 +62,8 @@ class PaymentModuleServiceProvider extends PackageServiceProvider
                 Route::webhooks('stripe', 'payment-module-stripe');
                 Route::webhooks('xendit', 'payment-module-xendit');
                 Route::webhooks('xendit/disbursement', 'payment-module-xendit-disbursement');
+                Route::webhooks('doku', 'payment-module-doku');
+                Route::webhooks('doku/disbursement', 'payment-module-doku-disbursement');
             });
     }
 
@@ -118,6 +120,18 @@ class PaymentModuleServiceProvider extends PackageServiceProvider
                     'signature_header_name' => 'x-callback-token',
                     'signature_validator' => Webhooks\SignatureValidators\XenditSignatureValidator::class,
                     'process_webhook_job' => Webhooks\Jobs\ProcessXenditDisbursementWebhookJob::class,
+                ]),
+                array_merge($defaults, [
+                    'name' => 'payment-module-doku',
+                    'signature_header_name' => 'X-SIGNATURE',
+                    'signature_validator' => Webhooks\SignatureValidators\DokuSnapSignatureValidator::class,
+                    'process_webhook_job' => Webhooks\Jobs\ProcessDokuWebhookJob::class,
+                ]),
+                array_merge($defaults, [
+                    'name' => 'payment-module-doku-disbursement',
+                    'signature_header_name' => 'X-SIGNATURE',
+                    'signature_validator' => Webhooks\SignatureValidators\DokuSnapSignatureValidator::class,
+                    'process_webhook_job' => Webhooks\Jobs\ProcessDokuDisbursementWebhookJob::class,
                 ]),
             ]
         ));
