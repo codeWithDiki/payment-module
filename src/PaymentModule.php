@@ -59,7 +59,10 @@ class PaymentModule
                 return $payment->setRawAttributes($locked->getAttributes(), true);
             }
 
-            $locked->update(['status' => $status]);
+            $locked->update(array_merge(
+                ['status' => $status],
+                $status === PaymentStatus::PAID ? ['paid_at' => now()] : []
+            ));
 
             $payment->setRawAttributes($locked->getAttributes(), true);
 

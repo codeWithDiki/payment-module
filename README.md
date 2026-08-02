@@ -829,10 +829,40 @@ public function panel(Panel $panel): Panel
 ```
 
 Empat resource langsung tersedia di panel admin:
-- **Payments** — Daftar & detail transaksi (read-only)
+- **Payments** — Daftar & detail transaksi, dengan aksi **Confirm Payment** untuk pembayaran offline (lihat di bawah)
 - **Payment Methods** — CRUD metode pembayaran
 - **Payment Method Groups** — CRUD grup metode pembayaran
 - **Disbursements** — Daftar & detail payout, dengan aksi **Approve**/**Reject** (muncul saat status `queued`) yang langsung memanggil API Midtrans
+
+Semua tabel diurutkan **descending** (terbaru di atas) secara default lewat trait `Resources\Concerns\HasDefaultTableSort`. Kolom pengurutannya `created_at`; override `$defaultSortColumn` pada class Table bila tabel tertentu perlu kolom lain:
+
+```php
+class PaymentsTable
+{
+    use HasDefaultTableSort;
+
+    protected static string $defaultSortColumn = 'paid_at';
+    // ...
+}
+```
+
+Default ini sengaja di-opt-in per tabel, bukan lewat `Table::configureUsing()`, supaya tidak bocor ke tabel milik aplikasimu sendiri.
+
+### Konfirmasi Manual Pembayaran Offline
+
+Pembayaran dengan vendor `Offline` (`bank_transfer`, `cstore`, `offline`, `offline_qris`) **tidak dikonfirmasi otomatis**. Tidak ada gateway yang bisa membuktikan dananya benar-benar masuk, jadi payment tetap `pending` sampai operator memverifikasi sendiri lalu menekan tombol **Confirm Payment** di resource Payments.
+
+Tombolnya hanya muncul bila `$payment->canBeConfirmedManually()` bernilai `true`, yaitu saat status masih `pending` **dan** vendornya `Offline`. Pembayaran lewat gateway sengaja tidak bisa dikonfirmasi manual — menandainya lunas dengan tangan berarti menyelesaikan order yang uangnya tidak pernah benar-benar ditagih gateway.
+
+Predikatnya ada di model, bukan di layer Filament, jadi bisa dipakai ulang di luar panel admin:
+
+```php
+if ($payment->canBeConfirmedManually()) {
+    PaymentModule::setPaymentStatus($payment, PaymentStatus::PAID);
+}
+```
+
+`setPaymentStatus()` mengisi `paid_at` otomatis saat status menjadi `paid`, dan tetap idempoten — konfirmasi ganda tidak akan men-dispatch `PaymentPaid` dua kali.
 
 ---
 
@@ -1078,7 +1108,7 @@ $payment->paymentMethod->vendor->getPaymentProcessorClass()
         │       └── getDokuQrString() → Isi EMV QRIS untuk dirender di klien
         │
         ├── PaymentVendor::Offline → Offline::processPayment()
-        │       └── setPaymentStatus(PAID) → Dispatch PaymentPaid
+        │       └── (no-op) → tetap PENDING sampai dikonfirmasi manual di Filament
         │
         └── VendorKustom::Flip → FlipProcessor::processPayment()
                 └── (logika kustom kamu)

@@ -57,6 +57,20 @@ class Payment extends Model
         return (float) ($this->total_amount ?: $this->amount);
     }
 
+    /**
+     * Whether an operator may settle this payment by hand.
+     *
+     * True only for offline channels (bank transfer, convenience store, ...) that are still
+     * pending: they have no gateway to report the outcome, so a human has to verify the
+     * funds arrived. Gateway payments are excluded on purpose — confirming one by hand
+     * would settle an order the gateway never actually collected money for.
+     */
+    public function canBeConfirmedManually(): bool
+    {
+        return $this->status === PaymentStatus::PENDING
+            && $this->paymentMethod->vendor === PaymentVendor::Offline;
+    }
+
     public function paymentable(): MorphTo
     {
         return $this->morphTo();

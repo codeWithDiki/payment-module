@@ -2,9 +2,7 @@
 
 namespace CodeWithDiki\PaymentModule\Supports\PaymentMethod;
 
-use CodeWithDiki\PaymentModule\Enums\PaymentStatus;
 use CodeWithDiki\PaymentModule\Models\Payment;
-use CodeWithDiki\PaymentModule\PaymentModule;
 use Illuminate\Support\Collection;
 
 class Offline implements Contracts\PaymentProcessor
@@ -21,8 +19,13 @@ class Offline implements Contracts\PaymentProcessor
         ]);
     }
 
+    /**
+     * Offline channels have no gateway to charge, and nothing here can prove the customer
+     * actually paid. The payment stays pending until an operator confirms it by hand —
+     * see PaymentResource::getConfirmAction() for the Filament button that does that.
+     */
     public function processPayment(Payment $payment): void
     {
-        (new PaymentModule)->setPaymentStatus($payment, PaymentStatus::PAID);
+        // Intentionally does nothing: confirmation is a manual, human decision.
     }
 }

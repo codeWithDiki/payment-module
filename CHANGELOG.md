@@ -8,6 +8,20 @@ Setiap rilis ditandai dengan git tag `vX.Y.Z` (mis. `v1.3.0`).
 
 ## [Unreleased]
 
+### Added
+
+- Aksi **Confirm Payment** di resource Payments untuk menyelesaikan pembayaran offline secara manual, lengkap dengan konfirmasi dan notifikasi. Hanya muncul untuk payment `pending` bervendor `Offline`.
+- `Payment::canBeConfirmedManually()` — predikat kelayakan konfirmasi manual, ditaruh di model agar bisa dipakai ulang di luar Filament.
+- Trait `Resources\Concerns\HasDefaultTableSort` — semua tabel Filament package kini diurutkan descending (terbaru di atas), dengan `$defaultSortColumn` yang bisa di-override per tabel.
+
+### Changed
+
+- **BREAKING:** pembayaran bervendor `Offline` **tidak lagi otomatis ditandai `paid`** saat dibuat. `Offline::processPayment()` sekarang no-op dan payment tetap `pending` sampai operator mengonfirmasinya. Tidak ada gateway yang bisa membuktikan dana offline sudah masuk, jadi konfirmasi otomatis menyelesaikan order yang belum tentu dibayar. Bila kamu bergantung pada perilaku lama, panggil `PaymentModule::setPaymentStatus($payment, PaymentStatus::PAID)` sendiri setelah verifikasi.
+
+### Fixed
+
+- Kolom `paid_at` pada `payments` kini benar-benar terisi. Sebelumnya kolom itu ada dan sudah di-cast, tapi tidak pernah ditulis oleh kode mana pun; `setPaymentStatus()` sekarang mengisinya saat status menjadi `paid`, sejalan dengan `completed_at` pada disbursement.
+
 ## [1.4.0] - 2026-08-02
 
 Rilis ini menambahkan **DOKU** sebagai vendor bawaan, mencakup pembayaran lewat **SNAP Direct API**

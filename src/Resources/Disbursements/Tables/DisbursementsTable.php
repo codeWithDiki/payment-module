@@ -2,6 +2,7 @@
 
 namespace CodeWithDiki\PaymentModule\Resources\Disbursements\Tables;
 
+use CodeWithDiki\PaymentModule\Resources\Concerns\HasDefaultTableSort;
 use CodeWithDiki\PaymentModule\Resources\Disbursements\DisbursementResource;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\ViewAction;
@@ -10,9 +11,11 @@ use Filament\Tables\Table;
 
 class DisbursementsTable
 {
+    use HasDefaultTableSort;
+
     public static function configure(Table $table): Table
     {
-        return $table
+        return static::withDefaultSort($table)
             ->columns([
                 TextColumn::make('disbursement_code')
                     ->searchable(),

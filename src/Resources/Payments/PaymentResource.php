@@ -3,16 +3,21 @@
 namespace CodeWithDiki\PaymentModule\Resources\Payments;
 
 use BackedEnum;
+use CodeWithDiki\PaymentModule\Enums\PaymentStatus;
+use CodeWithDiki\PaymentModule\Facades\PaymentModule;
 use CodeWithDiki\PaymentModule\Models\Payment;
 use CodeWithDiki\PaymentModule\Resources\Payments\Pages\ListPayments;
 use CodeWithDiki\PaymentModule\Resources\Payments\Pages\ViewPayment;
 use CodeWithDiki\PaymentModule\Resources\Payments\Schemas\PaymentForm;
 use CodeWithDiki\PaymentModule\Resources\Payments\Schemas\PaymentInfolist;
 use CodeWithDiki\PaymentModule\Resources\Payments\Tables\PaymentsTable;
+use Filament\Actions\Action;
+use Filament\Notifications\Notification;
 use Filament\Resources\Resource;
 use Filament\Schemas\Schema;
 use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Table;
+use Illuminate\Support\Facades\Log;
 
 class PaymentResource extends Resource
 {
@@ -42,6 +47,45 @@ class PaymentResource extends Resource
     public static function table(Table $table): Table
     {
         return PaymentsTable::configure($table);
+    }
+
+    /**
+     * Manual settlement for offline channels (bank transfer, convenience store, ...),
+     * which have no gateway to confirm the payment for us.
+     *
+     * Deliberately hidden for gateway vendors: marking a Midtrans or Stripe payment paid
+     * by hand would settle an order the gateway never actually collected money for.
+     */
+    public static function getConfirmAction(): Action
+    {
+        return Action::make('confirm')
+            ->label('Confirm Payment')
+            ->icon(Heroicon::OutlinedCheckCircle)
+            ->color('success')
+            ->requiresConfirmation()
+            ->modalDescription('Only confirm once you have verified the funds were received. This marks the payment as paid and dispatches PaymentPaid.')
+            ->visible(fn (Payment $record) => $record->canBeConfirmedManually())
+            ->action(function (Payment $record) {
+                try {
+                    PaymentModule::setPaymentStatus($record, PaymentStatus::PAID);
+
+                    Notification::make()
+                        ->title('Payment confirmed')
+                        ->success()
+                        ->send();
+                } catch (\Throwable $e) {
+                    Log::error('Manual payment confirmation failed', [
+                        'payment_id' => $record->id,
+                        'exception' => $e,
+                    ]);
+
+                    Notification::make()
+                        ->title('Failed to confirm payment')
+                        ->body('An unexpected error occurred. Please try again or contact support.')
+                        ->danger()
+                        ->send();
+                }
+            });
     }
 
     public static function getRelations(): array

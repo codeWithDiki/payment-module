@@ -2,6 +2,7 @@
 
 namespace CodeWithDiki\PaymentModule\Resources\PaymentMethodGroups\Tables;
 
+use CodeWithDiki\PaymentModule\Resources\Concerns\HasDefaultTableSort;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DeleteBulkAction;
 use Filament\Actions\EditAction;
@@ -13,9 +14,11 @@ use Filament\Tables\Table;
 
 class PaymentMethodGroupsTable
 {
+    use HasDefaultTableSort;
+
     public static function configure(Table $table): Table
     {
-        return $table
+        return static::withDefaultSort($table)
             ->columns([
                 TextColumn::make('name')
                     ->searchable(),
