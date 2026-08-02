@@ -9,8 +9,7 @@ use CodeWithDiki\PaymentModule\Enums\PaymentStatus;
 use CodeWithDiki\PaymentModule\Models\Payment;
 use CodeWithDiki\PaymentModule\Models\PaymentMethod;
 use Illuminate\Database\Eloquent\Collection;
-use Illuminate\Foundation\Http\Middleware\VerifyCsrfToken;
-use Illuminate\Support\Facades\Route;
+use Illuminate\Support\Facades\DB;
 
 class PaymentModule
 {
@@ -51,34 +50,27 @@ class PaymentModule
 
     public function setPaymentStatus(Payment $payment, PaymentStatus $status): Payment
     {
-        // Idempotency: once a payment reaches a terminal status, ignore further
-        // transitions (e.g. a replayed webhook) so events are not dispatched twice.
-        if ($payment->status instanceof PaymentStatus && $payment->status->isTerminal()) {
+        // Idempotency: re-read the row under a lock so two concurrent deliveries of the
+        // same webhook cannot both observe a non-terminal status and dispatch twice.
+        return DB::transaction(function () use ($payment, $status) {
+            $locked = $payment->newQuery()->whereKey($payment->getKey())->lockForUpdate()->first() ?? $payment;
+
+            if ($locked->status instanceof PaymentStatus && $locked->status->isTerminal()) {
+                return $payment->setRawAttributes($locked->getAttributes(), true);
+            }
+
+            $locked->update(['status' => $status]);
+
+            $payment->setRawAttributes($locked->getAttributes(), true);
+
+            match ($status) {
+                PaymentStatus::PAID => Events\PaymentPaid::dispatch($payment),
+                PaymentStatus::FAILED => Events\PaymentFailed::dispatch($payment),
+                default => null
+            };
+
             return $payment;
-        }
-
-        $payment->update([
-            'status' => $status,
-        ]);
-
-        match ($status) {
-            PaymentStatus::PAID => Events\PaymentPaid::dispatch($payment),
-            PaymentStatus::FAILED => Events\PaymentFailed::dispatch($payment),
-            default => null
-        };
-
-        return $payment;
-    }
-
-    public function webhookRoutes(): void
-    {
-        Route::prefix(config('payment-module.webhook.prefix', 'webhooks'))
-            ->withoutMiddleware(config('payment-module.webhook.without_middleware', [VerifyCsrfToken::class]))
-            ->group(function () {
-                Route::webhooks('midtrans', 'payment-module-midtrans');
-                Route::webhooks('midtrans/payout', 'payment-module-midtrans-payout');
-                Route::webhooks('stripe', 'payment-module-stripe');
-            });
+        });
     }
 
     public function createDisbursement(Data\DisbursementData $data): Models\Disbursement
@@ -110,25 +102,31 @@ class PaymentModule
 
     public function setDisbursementStatus(Models\Disbursement $disbursement, Enums\DisbursementStatus $status): Models\Disbursement
     {
-        // Idempotency: once a disbursement reaches a terminal status, ignore further
-        // transitions (e.g. a replayed webhook) so events are not dispatched twice.
-        if ($disbursement->status instanceof Enums\DisbursementStatus && $disbursement->status->isTerminal()) {
+        // Idempotency: re-read the row under a lock so two concurrent deliveries of the
+        // same webhook cannot both observe a non-terminal status and dispatch twice.
+        return DB::transaction(function () use ($disbursement, $status) {
+            $locked = $disbursement->newQuery()->whereKey($disbursement->getKey())->lockForUpdate()->first() ?? $disbursement;
+
+            if ($locked->status instanceof Enums\DisbursementStatus && $locked->status->isTerminal()) {
+                return $disbursement->setRawAttributes($locked->getAttributes(), true);
+            }
+
+            $locked->update(array_merge(
+                ['status' => $status],
+                $status === Enums\DisbursementStatus::COMPLETED ? ['completed_at' => now()] : []
+            ));
+
+            $disbursement->setRawAttributes($locked->getAttributes(), true);
+
+            match ($status) {
+                Enums\DisbursementStatus::COMPLETED => Events\DisbursementCompleted::dispatch($disbursement),
+                Enums\DisbursementStatus::FAILED,
+                Enums\DisbursementStatus::REJECTED => Events\DisbursementFailed::dispatch($disbursement),
+                default => null
+            };
+
             return $disbursement;
-        }
-
-        $disbursement->update(array_merge(
-            ['status' => $status],
-            $status === Enums\DisbursementStatus::COMPLETED ? ['completed_at' => now()] : []
-        ));
-
-        match ($status) {
-            Enums\DisbursementStatus::COMPLETED => Events\DisbursementCompleted::dispatch($disbursement),
-            Enums\DisbursementStatus::FAILED,
-            Enums\DisbursementStatus::REJECTED => Events\DisbursementFailed::dispatch($disbursement),
-            default => null
-        };
-
-        return $disbursement;
+        });
     }
 
     public function getDisbursementByCode(string $disbursement_code): ?Models\Disbursement
@@ -170,6 +168,9 @@ class PaymentModule
     public function rejectDisbursement(Models\Disbursement $disbursement, ?string $reason = null): Models\Disbursement
     {
         $this->getDisbursementProcessor($disbursement)->rejectDisbursement($disbursement, $reason);
+
+        // Record the approver who acted on the payout; the REJECTED status says which way
+        $disbursement->update(['approved_by' => auth()->id()]);
 
         return $disbursement;
     }
@@ -224,7 +225,9 @@ class PaymentModule
     {
         $paymentMethodGroupClass = config('payment-module.payment_method_group_class');
 
-        return $paymentMethodGroupClass::isActive()->where('id', $group_id)->paymentMethods()->isActive()->get();
+        $group = $paymentMethodGroupClass::isActive()->find($group_id);
+
+        return $group?->paymentMethods()->isActive()->get() ?? new Collection;
     }
 
     public function createPaymentMethodGroup(PaymentMethodGroupData $data): Models\PaymentMethodGroup

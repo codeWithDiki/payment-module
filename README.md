@@ -331,11 +331,13 @@ PaymentModule::createPaymentMethod(new PaymentMethodData(
 Saat pembayaran dibuat, fee dihitung otomatis dan disimpan ke kolom `fee`, lalu `total_amount = amount + fee` adalah jumlah yang **benar-benar ditagih** ke pelanggan oleh gateway:
 
 ```
-fee          = fee_flat + (amount × fee_percentage / 100)
+fee          = round(fee_flat + (amount × fee_percentage / 100), desimal_currency)
 total_amount = amount + fee
 ```
 
 Contoh: `amount` `100000` dengan `fee_flat: 4400` dan `fee_percentage: 0` → `fee` `4400`, `total_amount` `104400`. Nilai inilah yang dikirim ke Midtrans/Stripe/Xendit dan yang diverifikasi saat webhook masuk.
+
+**Pembulatan fee mengikuti currency vendor.** Midtrans dan Xendit selalu menyelesaikan transaksi dalam IDR, yang menolak pecahan, sehingga fee dibulatkan ke rupiah penuh. Stripe mengikuti `stripe_currency`: currency zero-decimal (JPY, KRW, VND, …) dibulatkan ke satuan penuh, sisanya ke 2 desimal — jadi fee 2.9% dari `10` USD tetap `0.29`, bukan `0`.
 
 ```php
 $payment->amount;            // 100000 (nominal pokok)

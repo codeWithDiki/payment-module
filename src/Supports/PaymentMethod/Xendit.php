@@ -2,9 +2,12 @@
 
 namespace CodeWithDiki\PaymentModule\Supports\PaymentMethod;
 
+use CodeWithDiki\PaymentModule\Enums\PaymentStatus;
 use CodeWithDiki\PaymentModule\Events\PaymentGatewayProcessed;
 use CodeWithDiki\PaymentModule\Models\Payment;
+use CodeWithDiki\PaymentModule\PaymentModule;
 use Illuminate\Http\Client\PendingRequest;
+use Illuminate\Http\Client\Response;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Http;
 
@@ -54,13 +57,21 @@ class Xendit implements Contracts\PaymentProcessor
         };
 
         $payment->update([
-            'payment_response' => $response,
+            'payment_response' => $response->json(),
         ]);
+
+        // A rejected charge leaves nothing for the customer to pay; fail the payment loudly
+        // instead of leaving it pending forever with an error body as its response.
+        if ($response->failed()) {
+            (new PaymentModule)->setPaymentStatus($payment, PaymentStatus::FAILED);
+
+            return;
+        }
 
         PaymentGatewayProcessed::dispatch($payment);
     }
 
-    protected function createVirtualAccount(Payment $payment, string $bankCode, float $amount): array
+    protected function createVirtualAccount(Payment $payment, string $bankCode, float $amount): Response
     {
         return $this->client()
             ->post('/callback_virtual_accounts', [
@@ -70,11 +81,10 @@ class Xendit implements Contracts\PaymentProcessor
                 'is_closed' => true,
                 'is_single_use' => true,
                 'expected_amount' => $amount,
-            ])
-            ->json();
+            ]);
     }
 
-    protected function createEwalletCharge(Payment $payment, string $channelCode, float $amount): array
+    protected function createEwalletCharge(Payment $payment, string $channelCode, float $amount): Response
     {
         return $this->client()
             ->post('/ewallets/charges', [
@@ -87,11 +97,10 @@ class Xendit implements Contracts\PaymentProcessor
                     'success_redirect_url' => $this->resolveUrl(config('payment-module.xendit_success_redirect_url'), $payment->payment_code),
                     'failure_redirect_url' => $this->resolveUrl(config('payment-module.xendit_failure_redirect_url'), $payment->payment_code),
                 ]),
-            ])
-            ->json();
+            ]);
     }
 
-    protected function createQrCode(Payment $payment, float $amount): array
+    protected function createQrCode(Payment $payment, float $amount): Response
     {
         return $this->client()
             ->post('/qr_codes', [
@@ -99,8 +108,7 @@ class Xendit implements Contracts\PaymentProcessor
                 'type' => 'DYNAMIC',
                 'currency' => 'IDR',
                 'amount' => $amount,
-            ])
-            ->json();
+            ]);
     }
 
     protected function client(): PendingRequest

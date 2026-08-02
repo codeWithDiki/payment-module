@@ -3,6 +3,7 @@
 namespace CodeWithDiki\PaymentModule\Models;
 
 use CodeWithDiki\PaymentModule\Enums\PaymentVendor;
+use CodeWithDiki\PaymentModule\Supports\PaymentMethod\Stripe;
 use Illuminate\Database\Eloquent\Attributes\Scope;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
@@ -43,7 +44,18 @@ class PaymentMethod extends Model
      */
     public function calculateFee(float $amount): float
     {
-        return round((float) $this->fee_flat + ($amount * (float) $this->fee_percentage / 100));
+        $fee = (float) $this->fee_flat + ($amount * (float) $this->fee_percentage / 100);
+
+        return round($fee, $this->feeDecimals());
+    }
+
+    /**
+     * Decimal places the vendor's currency accepts. Midtrans and Xendit settle in IDR,
+     * which rejects fractional units; Stripe follows its configured currency.
+     */
+    protected function feeDecimals(): int
+    {
+        return $this->vendor === PaymentVendor::Stripe ? Stripe::currencyDecimals() : 0;
     }
 
     public function paymentMethodGroup(): BelongsTo

@@ -12,7 +12,7 @@ class Stripe implements Contracts\PaymentProcessor
     use Concerns\InteractsWithPaymentProcessor;
 
     /** Currencies that Stripe treats as zero-decimal (amount is sent as-is, not multiplied by 100) */
-    protected const ZERO_DECIMAL_CURRENCIES = [
+    public const ZERO_DECIMAL_CURRENCIES = [
         'bif', 'clp', 'djf', 'gnf', 'jpy', 'kmf', 'krw', 'mga',
         'pyg', 'rwf', 'ugx', 'vnd', 'vuv', 'xaf', 'xof', 'xpf',
     ];
@@ -89,13 +89,18 @@ class Stripe implements Contracts\PaymentProcessor
      */
     public static function smallestCurrencyUnit(float $amount, ?string $currency = null): int
     {
+        return (int) round($amount * 10 ** self::currencyDecimals($currency));
+    }
+
+    /**
+     * Decimal places the configured Stripe currency accepts. Zero-decimal currencies
+     * (JPY, KRW, ...) reject fractional amounts the same way IDR does.
+     */
+    public static function currencyDecimals(?string $currency = null): int
+    {
         $currency = $currency ?: config('payment-module.stripe_currency', 'usd');
 
-        if (in_array(strtolower($currency), self::ZERO_DECIMAL_CURRENCIES)) {
-            return (int) round($amount);
-        }
-
-        return (int) round($amount * 100);
+        return in_array(strtolower($currency), self::ZERO_DECIMAL_CURRENCIES, true) ? 0 : 2;
     }
 
     protected function resolveUrl(?string $url, string $payment_code): ?string
