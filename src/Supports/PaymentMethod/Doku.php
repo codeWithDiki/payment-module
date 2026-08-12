@@ -120,19 +120,26 @@ class Doku implements Contracts\PaymentProcessor
         ], 'DH');
     }
 
+    /**
+     * qr-mpm-generate requires partnerReferenceNo, amount, merchantId, terminalId and
+     * additionalInfo{postalCode, feeType}. Unlike the other channels it takes no
+     * additionalInfo.channel, and its CHANNEL-ID header is H2H rather than QRIS.
+     *
+     * @see https://developers.doku.com/accept-payments/direct-api/snap/integration-guide/qris
+     */
     protected function createQrCode(Payment $payment, float $amount): Response
     {
         return $this->client->post(self::QRIS_PATH, [
             'partnerReferenceNo' => $payment->payment_code,
             'amount' => self::money($amount),
             'merchantId' => config('payment-module.doku_client_id'),
-            // Mandatory on qr-mpm-generate, and constant per merchant rather than per payment
             'terminalId' => (string) config('payment-module.doku_qris_terminal_id'),
             'additionalInfo' => [
-                'channel' => 'QRIS',
                 'postalCode' => (string) config('payment-module.doku_qris_postal_code'),
+                // The spec allows exactly one value: "1" (no tips). Not worth a config key.
+                'feeType' => '1',
             ],
-        ], 'QRIS');
+        ], 'H2H');
     }
 
     /**

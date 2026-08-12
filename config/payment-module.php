@@ -60,8 +60,9 @@ return [
     'doku_is_production' => env('DOKU_IS_PRODUCTION', false),
 
     /** Doku QRIS — both are mandatory on qr-mpm-generate and constant per merchant */
+    // Alphanumeric only, 3 to 16 characters (no dashes or spaces)
     'doku_qris_terminal_id' => env('DOKU_QRIS_TERMINAL_ID', ''),
-    // Postal code of the registered merchant address
+    // Postal code of the registered merchant address, numeric, max 5 digits
     'doku_qris_postal_code' => env('DOKU_QRIS_POSTAL_CODE', ''),
 
     /** Doku Payout (Kirim DOKU) sender identity — constant per merchant, required by transfer-bank */

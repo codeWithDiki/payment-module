@@ -135,9 +135,14 @@ it('creates a dynamic qr code for the qris channel', function () {
 
     Http::assertSent(fn (Request $request) => str_contains($request->url(), '/qr/qr-mpm-generate')
         && $request['amount']['value'] === '104400.00'
-        // Both are mandatory; DOKU answers 4004702 when either is missing
-        && $request['terminalId'] === 'TERM-01'
-        && $request['additionalInfo']['postalCode'] === '40115');
+        && $request['merchantId'] === 'MCH-0001-1079'
+        // All three are mandatory; DOKU answers 4004702 when any is missing
+        && $request['terminalId'] === 'TERM01'
+        && $request['additionalInfo']['postalCode'] === '40115'
+        && $request['additionalInfo']['feeType'] === '1'
+        // QRIS is host-to-host and carries no additionalInfo.channel
+        && $request->hasHeader('CHANNEL-ID', 'H2H')
+        && ! isset($request['additionalInfo']['channel']));
 
     expect($payment->fresh()->getDokuQrString())->toBe('00020101021226');
 });
