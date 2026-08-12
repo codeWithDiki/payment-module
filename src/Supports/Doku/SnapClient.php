@@ -2,6 +2,7 @@
 
 namespace CodeWithDiki\PaymentModule\Supports\Doku;
 
+use Illuminate\Http\Client\RequestException;
 use Illuminate\Http\Client\Response;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
@@ -25,29 +26,79 @@ class SnapClient
     /** Seconds subtracted from the token lifetime so an in-flight request never races the expiry */
     protected const TOKEN_EXPIRY_MARGIN = 60;
 
+    /**
+     * Path, headers and body of the most recent post(), so the caller can persist what it
+     * actually sent when DOKU rejects the call. Instance state: one client per processor,
+     * one call per processor run.
+     *
+     * @var array{path?: string, headers?: array<string, string>, body?: array<mixed>}
+     */
+    public array $lastRequest = [];
+
     public function post(string $path, array $body, string $channelId): Response
     {
         // The signature is computed over the exact bytes we send. Encoding once and
         // passing the same string to withBody() keeps the two from ever diverging.
         $json = json_encode($body, JSON_UNESCAPED_SLASHES);
         $timestamp = $this->timestamp();
-        $token = $this->accessToken();
+
+        try {
+            $token = $this->accessToken();
+        } catch (RequestException $e) {
+            // A rejected token request is still DOKU's answer to this call. Returning it as
+            // the call's own response keeps the caller on its normal failure path — which
+            // records the body — instead of unwinding with nothing logged at all.
+            $this->lastRequest = [
+                'path' => self::TOKEN_PATH,
+                'headers' => [
+                    'X-CLIENT-KEY' => $this->clientId(),
+                    'X-TIMESTAMP' => $timestamp,
+                ],
+                'body' => ['grantType' => 'client_credentials'],
+            ];
+
+            return $e->response;
+        }
+
+        $headers = [
+            'Authorization' => 'Bearer '.$token,
+            'X-PARTNER-ID' => $this->clientId(),
+            'X-EXTERNAL-ID' => $this->externalId(),
+            'X-TIMESTAMP' => $timestamp,
+            'CHANNEL-ID' => $channelId,
+            'X-SIGNATURE' => self::symmetricSignature(
+                self::stringToSign('POST', $path, $token, $json, $timestamp),
+                $this->clientSecret(),
+            ),
+        ];
+
+        // The bearer token is a live 15-minute credential; never let it reach a stored log.
+        $this->lastRequest = [
+            'path' => $path,
+            'headers' => ['Authorization' => 'Bearer [redacted]'] + $headers,
+            'body' => $body,
+        ];
 
         return Http::baseUrl($this->baseUrl())
             ->acceptJson()
-            ->withHeaders([
-                'Authorization' => 'Bearer '.$token,
-                'X-PARTNER-ID' => $this->clientId(),
-                'X-EXTERNAL-ID' => $this->externalId(),
-                'X-TIMESTAMP' => $timestamp,
-                'CHANNEL-ID' => $channelId,
-                'X-SIGNATURE' => self::symmetricSignature(
-                    self::stringToSign('POST', $path, $token, $json, $timestamp),
-                    $this->clientSecret(),
-                ),
-            ])
+            ->withHeaders($headers)
             ->withBody($json, 'application/json')
             ->post($path);
+    }
+
+    /**
+     * Response worth storing. DOKU answers a bad signature with a JSON body, but an
+     * upstream 401 can arrive as HTML or empty — keep the status and raw body then,
+     * so "no log at all" is never the outcome of a failed call.
+     *
+     * @return array<mixed>
+     */
+    public static function describe(Response $response): array
+    {
+        return $response->json() ?? [
+            'status' => $response->status(),
+            'body' => $response->body(),
+        ];
     }
 
     /**

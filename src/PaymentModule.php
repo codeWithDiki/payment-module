@@ -145,6 +145,7 @@ class PaymentModule
 
     public function approveDisbursement(Models\Disbursement $disbursement): Models\Disbursement
     {
+        $this->guardAwaitingApproval($disbursement);
         $this->guardSeparationOfDuties($disbursement);
 
         $this->getDisbursementProcessor($disbursement)->approveDisbursement($disbursement);
@@ -152,6 +153,18 @@ class PaymentModule
         $disbursement->update(['approved_by' => auth()->id()]);
 
         return $disbursement;
+    }
+
+    /**
+     * A disbursement is only approvable while it waits for a decision. The Filament actions
+     * hide themselves for any other status, but hiding a button is not a control: this is the
+     * chokepoint both the panel and any programmatic caller pass through.
+     */
+    protected function guardAwaitingApproval(Models\Disbursement $disbursement): void
+    {
+        if ($disbursement->status !== Enums\DisbursementStatus::QUEUED) {
+            throw Exceptions\DisbursementApprovalDeniedException::notAwaitingApproval($disbursement->status);
+        }
     }
 
     /**
@@ -171,6 +184,8 @@ class PaymentModule
 
     public function rejectDisbursement(Models\Disbursement $disbursement, ?string $reason = null): Models\Disbursement
     {
+        $this->guardAwaitingApproval($disbursement);
+
         $this->getDisbursementProcessor($disbursement)->rejectDisbursement($disbursement, $reason);
 
         // Record the approver who acted on the payout; the REJECTED status says which way

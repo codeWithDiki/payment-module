@@ -179,6 +179,43 @@ it('fails the payment when the doku charge is rejected', function () {
         ->and($payment->fresh()->payment_response['responseCode'])->toBe('4002701');
 });
 
+it('records the request and the response body when doku rejects the token request', function () {
+    dokuCredentials();
+    Http::fake([
+        'https://api-sandbox.doku.com/authorization/v1/access-token/b2b' => Http::response(
+            '<html>Unauthorized</html>',
+            401,
+        ),
+    ]);
+
+    $payment = dokuCreatePayment('VIRTUAL_ACCOUNT_BCA')->fresh();
+
+    expect($payment->status)->toBe(PaymentStatus::FAILED)
+        ->and($payment->payment_response['status'])->toBe(401)
+        ->and($payment->payment_response['body'])->toContain('Unauthorized')
+        ->and($payment->payment_headers['X-CLIENT-KEY'])->toBe('MCH-0001-1079')
+        ->and($payment->payment_payload)->toBe(['grantType' => 'client_credentials']);
+});
+
+it('records the signed request headers and payload without leaking the bearer token', function () {
+    dokuCredentials();
+    dokuFake([
+        'https://api-sandbox.doku.com/virtual-accounts/*' => Http::response([
+            'responseCode' => '4012700',
+            'responseMessage' => 'Unauthorized. Invalid Signature',
+        ], 401),
+    ]);
+
+    $payment = dokuCreatePayment('VIRTUAL_ACCOUNT_BCA')->fresh();
+
+    expect($payment->status)->toBe(PaymentStatus::FAILED)
+        ->and($payment->payment_response['responseCode'])->toBe('4012700')
+        ->and($payment->payment_headers['Authorization'])->toBe('Bearer [redacted]')
+        ->and($payment->payment_headers['X-SIGNATURE'])->not->toBeEmpty()
+        ->and($payment->payment_headers['CHANNEL-ID'])->toBe('H2H')
+        ->and($payment->payment_payload['trxId'])->toBe($payment->payment_code);
+});
+
 it('rejects doku webhooks with an invalid signature', function () {
     dokuCredentials();
 

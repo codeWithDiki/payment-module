@@ -111,7 +111,7 @@ class DisbursementResource extends Resource
                         ->title('Disbursement rejected')
                         ->success()
                         ->send();
-                } catch (DisbursementNotSupportedException $e) {
+                } catch (DisbursementApprovalDeniedException|DisbursementNotSupportedException $e) {
                     Notification::make()
                         ->title('Failed to reject disbursement')
                         ->body($e->getMessage())

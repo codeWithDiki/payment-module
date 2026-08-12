@@ -66,6 +66,17 @@ class PaymentResource extends Resource
             ->modalDescription('Only confirm once you have verified the funds were received. This marks the payment as paid and dispatches PaymentPaid.')
             ->visible(fn (Payment $record) => $record->canBeConfirmedManually())
             ->action(function (Payment $record) {
+                // visible() only hides the button. Re-check the invariant here so a forged
+                // action call cannot settle a gateway payment the gateway never collected.
+                if (! $record->canBeConfirmedManually()) {
+                    Notification::make()
+                        ->title('This payment cannot be confirmed manually')
+                        ->danger()
+                        ->send();
+
+                    return;
+                }
+
                 try {
                     PaymentModule::setPaymentStatus($record, PaymentStatus::PAID);
 

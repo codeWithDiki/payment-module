@@ -147,3 +147,26 @@ it('allows a different approver to approve the disbursement', function () {
     expect($disbursement->fresh()->status)->toBe(DisbursementStatus::APPROVED)
         ->and($disbursement->fresh()->approved_by)->toBe('9');
 });
+
+// A5 - an already-decided disbursement cannot be approved or rejected a second time
+it('refuses to approve or reject a disbursement that is no longer queued', function () {
+    $disbursement = Disbursement::create([
+        'disbursement_code' => 'DISB-'.uniqid(),
+        'reference_no' => 'REF-3',
+        'vendor' => PaymentVendor::Midtrans,
+        'beneficiary_name' => 'Budi',
+        'beneficiary_account' => '123',
+        'beneficiary_bank' => 'bca',
+        'amount' => 100000,
+        'status' => DisbursementStatus::COMPLETED,
+        'created_by' => 5,
+    ]);
+
+    $this->actingAs(new GenericUser(['id' => 9]));
+
+    expect(fn () => PaymentModule::approveDisbursement($disbursement))
+        ->toThrow(DisbursementApprovalDeniedException::class)
+        ->and(fn () => PaymentModule::rejectDisbursement($disbursement, 'nope'))
+        ->toThrow(DisbursementApprovalDeniedException::class)
+        ->and($disbursement->fresh()->status)->toBe(DisbursementStatus::COMPLETED);
+});

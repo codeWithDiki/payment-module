@@ -118,8 +118,8 @@ class DokuKirim implements Contracts\DisbursementProcessor
     protected function fail(Disbursement $disbursement, Response $response, string $fallbackMessage, ?array $payload = null): void
     {
         $disbursement->update([
-            'disbursement_payload' => $payload,
-            'disbursement_response' => $response->json(),
+            'disbursement_payload' => $payload ?? $this->client->lastRequest['body'] ?? null,
+            'disbursement_response' => SnapClient::describe($response),
             'status' => DisbursementStatus::FAILED,
             'error_code' => (string) ($response->json('responseCode') ?? $response->status()),
             'error_message' => $response->json('responseMessage') ?? $fallbackMessage,

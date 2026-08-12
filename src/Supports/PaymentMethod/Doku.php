@@ -67,7 +67,9 @@ class Doku implements Contracts\PaymentProcessor
         };
 
         $payment->update([
-            'payment_response' => $response->json(),
+            'payment_headers' => $this->client->lastRequest['headers'] ?? null,
+            'payment_payload' => $this->client->lastRequest['body'] ?? null,
+            'payment_response' => SnapClient::describe($response),
         ]);
 
         // A rejected charge leaves nothing for the customer to pay; fail the payment loudly

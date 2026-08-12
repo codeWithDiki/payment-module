@@ -8,4 +8,9 @@ class DisbursementApprovalDeniedException extends \Exception
     {
         return new self('The maker of a disbursement cannot approve it (separation of duties).');
     }
+
+    public static function notAwaitingApproval(\BackedEnum $status): self
+    {
+        return new self('Only a queued disbursement can be approved or rejected; this one is '.$status->value.'.');
+    }
 }
