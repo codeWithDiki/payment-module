@@ -7,6 +7,7 @@ use Filament\Forms\Components\FileUpload;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
+use Filament\Forms\Components\KeyValue;
 use Filament\Forms\Components\Toggle;
 use Filament\Schemas\Components\Section;
 use Filament\Schemas\Schema;
@@ -54,6 +55,12 @@ class PaymentMethodForm
                                 return $processor->getChannels() ?? [];
                             })
                             ->label('Channel'),
+                        // DOKU assigns a VA prefix (company code) per bank; create-va sends it as
+                        // partnerServiceId and returns the full account number built from it.
+                        KeyValue::make('meta_data')
+                            ->label('Meta Data')
+                            ->keyLabel('Key')
+                            ->valueLabel('Value'),
                         TextInput::make('fee_flat')
                             ->label('Flat Fee')
                             ->helperText('Fixed fee added on top of the amount')
