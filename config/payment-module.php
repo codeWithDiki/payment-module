@@ -59,6 +59,11 @@ return [
     'doku_private_key' => env('DOKU_PRIVATE_KEY', ''),
     'doku_is_production' => env('DOKU_IS_PRODUCTION', false),
 
+    /** Doku QRIS — both are mandatory on qr-mpm-generate and constant per merchant */
+    'doku_qris_terminal_id' => env('DOKU_QRIS_TERMINAL_ID', ''),
+    // Postal code of the registered merchant address
+    'doku_qris_postal_code' => env('DOKU_QRIS_POSTAL_CODE', ''),
+
     /** Doku Payout (Kirim DOKU) sender identity — constant per merchant, required by transfer-bank */
     'doku_sender_name' => env('DOKU_SENDER_NAME', ''),
     // Sender account number in phone number format (customerNumber)

@@ -134,7 +134,10 @@ it('creates a dynamic qr code for the qris channel', function () {
     $payment = dokuCreatePayment('QRIS');
 
     Http::assertSent(fn (Request $request) => str_contains($request->url(), '/qr/qr-mpm-generate')
-        && $request['amount']['value'] === '104400.00');
+        && $request['amount']['value'] === '104400.00'
+        // Both are mandatory; DOKU answers 4004702 when either is missing
+        && $request['terminalId'] === 'TERM-01'
+        && $request['additionalInfo']['postalCode'] === '40115');
 
     expect($payment->fresh()->getDokuQrString())->toBe('00020101021226');
 });

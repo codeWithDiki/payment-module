@@ -126,8 +126,11 @@ class Doku implements Contracts\PaymentProcessor
             'partnerReferenceNo' => $payment->payment_code,
             'amount' => self::money($amount),
             'merchantId' => config('payment-module.doku_client_id'),
+            // Mandatory on qr-mpm-generate, and constant per merchant rather than per payment
+            'terminalId' => (string) config('payment-module.doku_qris_terminal_id'),
             'additionalInfo' => [
                 'channel' => 'QRIS',
+                'postalCode' => (string) config('payment-module.doku_qris_postal_code'),
             ],
         ], 'QRIS');
     }

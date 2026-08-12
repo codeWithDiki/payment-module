@@ -17,6 +17,8 @@ function dokuCredentials(): void
     config()->set('payment-module.doku_client_id', 'MCH-0001-1079');
     config()->set('payment-module.doku_client_secret', 'doku-secret');
     config()->set('payment-module.doku_private_key', dokuPrivateKey());
+    config()->set('payment-module.doku_qris_terminal_id', 'TERM-01');
+    config()->set('payment-module.doku_qris_postal_code', '40115');
 }
 
 /** A throwaway RSA key, generated once per process, to sign the B2B token request. */
