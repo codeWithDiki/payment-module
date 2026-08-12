@@ -98,16 +98,12 @@ class Doku implements Contracts\PaymentProcessor
     protected function createVirtualAccount(Payment $payment, string $channel, float $amount): Response
     {
         $partnerServiceId = $this->partnerServiceId($payment);
-        $customerNo = (string)$payment->id . (string)$payment->created_at->format("YmdHis");
-
-        if(strlen($customerNo) > 20){
-            $customerNo = substr((string) $customerNo, 0, 20);
-        }
+        $customerNo = $this->customerNoPrefix($payment);
 
         return $this->client->post(self::VIRTUAL_ACCOUNT_PATH, [
-            'partnerServiceId' => trim($partnerServiceId),
+            'partnerServiceId' => $partnerServiceId,
             'customerNo' => $customerNo,
-            'virtualAccountNo' => trim($partnerServiceId . $customerNo),
+            'virtualAccountNo' => $partnerServiceId . $customerNo,
             'virtualAccountName' => $payment->customer_name ?: $payment->payment_code,
             'virtualAccountEmail' => $payment->customer_email,
             'virtualAccountPhone' => $payment->customer_phone,
@@ -204,4 +200,10 @@ class Doku implements Contracts\PaymentProcessor
 
         return str_pad(trim((string) $prefix), 8, ' ', STR_PAD_LEFT);
     }
+	
+    protected function customerNoPrefix(Payment $payment): string
+    {
+        return $payment->paymentMethod->meta_data['prefix_customer_no'] ?? '';
+    }
+
 }
