@@ -118,13 +118,4 @@ class Xendit implements Contracts\PaymentProcessor
             ->acceptJson()
             ->asJson();
     }
-
-    protected function resolveUrl(?string $url, string $payment_code): ?string
-    {
-        if (empty($url)) {
-            return null;
-        }
-
-        return str_replace('{payment_code}', $payment_code, $url);
-    }
 }

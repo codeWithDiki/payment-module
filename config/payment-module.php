@@ -58,6 +58,11 @@ return [
     // the B2B access token request. Either an inline PEM or a "file:///path/to/private.key".
     'doku_private_key' => env('DOKU_PRIVATE_KEY', ''),
     'doku_is_production' => env('DOKU_IS_PRODUCTION', false),
+    // Where DOKU sends the customer back after an e-wallet checkout; {payment_code} is
+    // replaced at charge time. Mandatory on the Direct Debit jump app endpoint.
+    'doku_payment_return_url' => env('DOKU_PAYMENT_RETURN_URL', ''),
+    // How long a virtual account or e-wallet charge stays payable (expiredDate / validUpTo)
+    'doku_payment_expiry_minutes' => env('DOKU_PAYMENT_EXPIRY_MINUTES', 60),
 
     /** Doku QRIS — both are mandatory on qr-mpm-generate and constant per merchant */
     // Alphanumeric only, 3 to 16 characters (no dashes or spaces)

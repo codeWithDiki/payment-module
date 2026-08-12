@@ -68,7 +68,7 @@ it('maps the doku vendor to the doku processor', function () {
 it('exposes doku channels', function () {
     $channels = (new Doku(new SnapClient))->getChannels();
 
-    expect($channels->keys()->all())->toContain('VIRTUAL_ACCOUNT_BCA', 'EMONEY_OVO', 'QRIS');
+    expect($channels->keys()->all())->toContain('VIRTUAL_ACCOUNT_BCA', 'EMONEY_DANA_SNAP', 'QRIS');
 });
 
 it('builds the snap string to sign and signature exactly as doku documents it', function () {
@@ -102,6 +102,8 @@ it('creates a closed virtual account billing the total amount', function () {
             && $request['partnerServiceId'] === '   19008'
             && $request['virtualAccountTrxType'] === 'C'
             && $request['additionalInfo']['channel'] === 'VIRTUAL_ACCOUNT_BCA'
+            // An expiredDate is what stops the VA from staying payable forever
+            && $request['expiredDate'] === now()->addHour()->setTimezone('Asia/Jakarta')->format('c')
             // total = amount (100000) + flat fee (4400)
             && $request['totalAmount']['value'] === '104400.00';
     });
@@ -109,17 +111,30 @@ it('creates a closed virtual account billing the total amount', function () {
     expect($payment->fresh()->getDokuVirtualAccountNumber())->toBe('190080000123');
 });
 
-it('creates an ewallet charge for ewallet channels', function () {
+it('creates an ewallet jump app charge for ewallet channels', function () {
+    config()->set('payment-module.doku_payment_return_url', 'https://shop.test/pay/{payment_code}/return');
+
     dokuCredentials();
     dokuFake([
-        'https://api-sandbox.doku.com/direct-debit/*' => Http::response(['responseCode' => '2005400']),
+        'https://api-sandbox.doku.com/direct-debit/*' => Http::response([
+            'responseCode' => '2005400',
+            'webRedirectUrl' => 'https://checkout.doku.com/jump/abc',
+        ]),
     ]);
 
-    dokuCreatePayment('EMONEY_OVO');
+    $payment = dokuCreatePayment('EMONEY_SHOPEE_PAY_SNAP');
 
     Http::assertSent(fn (Request $request) => str_contains($request->url(), '/debit/payment-host-to-host')
-        && $request['additionalInfo']['channel'] === 'EMONEY_OVO'
+        // Direct Debit is the one SNAP family that must not carry a CHANNEL-ID
+        && ! $request->hasHeader('CHANNEL-ID')
+        && $request['additionalInfo']['channel'] === 'EMONEY_SHOPEE_PAY_SNAP'
+        && $request['pointOfInitiation'] === 'website'
+        && $request['validUpTo'] === now()->addHour()->setTimezone('Asia/Jakarta')->format('c')
+        && $request['urlParam'][0]['url'] === 'https://shop.test/pay/'.$payment->payment_code.'/return'
+        && $request['urlParam'][0]['type'] === 'PAY_RETURN'
         && $request['amount']['value'] === '104400.00');
+
+    expect($payment->fresh()->getDokuEwalletRedirectUrl())->toBe('https://checkout.doku.com/jump/abc');
 });
 
 it('creates a dynamic qr code for the qris channel', function () {

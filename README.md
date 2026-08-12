@@ -244,6 +244,15 @@ return [
     // Boleh berupa PEM inline atau "file:///path/to/private.key".
     'doku_private_key'   => env('DOKU_PRIVATE_KEY', ''),
     'doku_is_production' => env('DOKU_IS_PRODUCTION', false),
+    // Tujuan balik pelanggan setelah checkout e-wallet; {payment_code} diganti saat charge.
+    // Wajib oleh endpoint Direct Debit jump app.
+    'doku_payment_return_url'     => env('DOKU_PAYMENT_RETURN_URL', ''),
+    // Umur tagihan VA / e-wallet (expiredDate & validUpTo)
+    'doku_payment_expiry_minutes' => env('DOKU_PAYMENT_EXPIRY_MINUTES', 60),
+
+    // DOKU QRIS — keduanya wajib di qr-mpm-generate dan konstan per merchant
+    'doku_qris_terminal_id'  => env('DOKU_QRIS_TERMINAL_ID', ''),
+    'doku_qris_postal_code'  => env('DOKU_QRIS_POSTAL_CODE', ''),
 
     // DOKU payout (Kirim DOKU) — identitas pengirim, wajib oleh transfer-bank
     'doku_sender_name'             => env('DOKU_SENDER_NAME', ''),
@@ -291,6 +300,11 @@ DOKU_CLIENT_ID=MCH-0001-xxxxxxxxxx
 DOKU_CLIENT_SECRET=SK-xxxxxxxxxxxx
 DOKU_PRIVATE_KEY="file:///etc/secrets/doku-private.key"
 DOKU_IS_PRODUCTION=false
+DOKU_PAYMENT_RETURN_URL="https://domain-kamu.com/payments/{payment_code}/return"
+DOKU_PAYMENT_EXPIRY_MINUTES=60
+
+DOKU_QRIS_TERMINAL_ID=TERM-01
+DOKU_QRIS_POSTAL_CODE=40115
 
 DOKU_SENDER_NAME="Toko Makmur"
 DOKU_SENDER_PHONE=628111111111
@@ -362,7 +376,7 @@ PaymentModule::createPaymentMethod(new PaymentMethodData(
 | `Midtrans` | `gopay`, `shopee_pay`, `qris`, `permata`, `bca`, `bni`, `bri`, `bsi`, `mandiri` |
 | `Stripe` | `card`, `link`, `alipay`, `wechat_pay` |
 | `Xendit` | `BCA`, `BNI`, `BRI`, `MANDIRI`, `PERMATA`, `BSI` (Virtual Account); `ID_OVO`, `ID_DANA`, `ID_LINKAJA`, `ID_SHOPEEPAY` (e-wallet); `QRIS` |
-| `Doku` | `VIRTUAL_ACCOUNT_BCA`, `VIRTUAL_ACCOUNT_BNI`, `VIRTUAL_ACCOUNT_BRI`, `VIRTUAL_ACCOUNT_BANK_MANDIRI`, `VIRTUAL_ACCOUNT_BANK_PERMATA`, `VIRTUAL_ACCOUNT_BANK_CIMB`, `VIRTUAL_ACCOUNT_BANK_SYARIAH_MANDIRI`, `VIRTUAL_ACCOUNT_BANK_DANAMON`, `VIRTUAL_ACCOUNT_BNC`, `VIRTUAL_ACCOUNT_BTN`, `VIRTUAL_ACCOUNT_DOKU` (Virtual Account); `EMONEY_OVO`, `EMONEY_DANA`, `EMONEY_SHOPEEPAY` (e-wallet); `QRIS` |
+| `Doku` | `VIRTUAL_ACCOUNT_BCA`, `VIRTUAL_ACCOUNT_BNI`, `VIRTUAL_ACCOUNT_BRI`, `VIRTUAL_ACCOUNT_BANK_MANDIRI`, `VIRTUAL_ACCOUNT_BANK_PERMATA`, `VIRTUAL_ACCOUNT_BANK_CIMB`, `VIRTUAL_ACCOUNT_BANK_DANAMON`, `VIRTUAL_ACCOUNT_BSI`, `VIRTUAL_ACCOUNT_BNC`, `VIRTUAL_ACCOUNT_BTN`, `VIRTUAL_ACCOUNT_MAYBANK`, `VIRTUAL_ACCOUNT_SINARMAS`, `VIRTUAL_ACCOUNT_BSS`, `VIRTUAL_ACCOUNT_DOKU` (Virtual Account); `EMONEY_DANA_SNAP`, `EMONEY_SHOPEE_PAY_SNAP` (e-wallet); `QRIS` |
 | `Offline` | `bank_transfer`, `cstore`, `offline`, `offline_qris` |
 
 > Channel `permata`, `bca`, `bni`, `bri`, `bsi`, dan `mandiri` diproses sebagai **bank transfer** via Midtrans.
@@ -384,6 +398,10 @@ PaymentModule::createPaymentMethod(new PaymentMethodData(
 > ```
 >
 > Nomor VA-nya digenerate DOKU (mode *DOKU Generated Payment Code*) dan bisa dibaca lewat `$payment->getDokuVirtualAccountNumber()`. Untuk QRIS, isi EMV-nya ada di `$payment->getDokuQrString()` — DOKU mengembalikan string QR, bukan URL gambar, jadi render sendiri di sisi klien.
+>
+> Channel `EMONEY_*` dikirim ke endpoint **Direct Debit jump app**, jadi butuh `DOKU_PAYMENT_RETURN_URL` terisi. DOKU membalas dengan URL checkout yang bisa dibaca lewat `$payment->getDokuEwalletRedirectUrl()` — arahkan pelanggan ke sana untuk menyetujui pembayaran di aplikasi DANA/ShopeePay.
+>
+> OVO, Allo Bank, dan BRI Direct Debit belum didukung: ketiganya butuh alur *account binding* dengan token B2B2C per pelanggan, bukan sekadar satu charge.
 
 ---
 
@@ -1105,7 +1123,8 @@ $payment->paymentMethod->vendor->getPaymentProcessorClass()
         │       ├── SnapClient: access token B2B (cached) + tanda tangan HMAC-SHA512
         │       ├── QRIS / e-wallet charge / closed Virtual Account via DOKU SNAP API
         │       ├── getDokuVirtualAccountNumber() → Nomor VA hasil generate DOKU
-        │       └── getDokuQrString() → Isi EMV QRIS untuk dirender di klien
+        │       ├── getDokuQrString() → Isi EMV QRIS untuk dirender di klien
+        │       └── getDokuEwalletRedirectUrl() → URL checkout DANA/ShopeePay
         │
         ├── PaymentVendor::Offline → Offline::processPayment()
         │       └── (no-op) → tetap PENDING sampai dikonfirmasi manual di Filament

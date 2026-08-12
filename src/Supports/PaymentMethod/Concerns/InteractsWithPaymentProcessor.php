@@ -18,4 +18,17 @@ trait InteractsWithPaymentProcessor
             'offline' => 'Offline',
         ]);
     }
+
+    /**
+     * Redirect URL from config, with {payment_code} substituted. Null when unconfigured,
+     * so callers can drop the key rather than send an empty string to the gateway.
+     */
+    protected function resolveUrl(?string $url, string $payment_code): ?string
+    {
+        if (empty($url)) {
+            return null;
+        }
+
+        return str_replace('{payment_code}', $payment_code, $url);
+    }
 }

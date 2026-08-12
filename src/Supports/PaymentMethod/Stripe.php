@@ -102,13 +102,4 @@ class Stripe implements Contracts\PaymentProcessor
 
         return in_array(strtolower($currency), self::ZERO_DECIMAL_CURRENCIES, true) ? 0 : 2;
     }
-
-    protected function resolveUrl(?string $url, string $payment_code): ?string
-    {
-        if (empty($url)) {
-            return null;
-        }
-
-        return str_replace('{payment_code}', $payment_code, $url);
-    }
 }

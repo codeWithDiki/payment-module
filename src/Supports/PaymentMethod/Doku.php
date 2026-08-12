@@ -26,9 +26,15 @@ class Doku implements Contracts\PaymentProcessor
 
     protected const QRIS_PATH = '/snap-adapter/b2b/v1.0/qr/qr-mpm-generate';
 
-    /** Channel codes settled through the e-wallet (direct debit) API */
+    /**
+     * Channel codes settled through the Direct Debit "jump app" API. DOKU's own SDK accepts
+     * only these two: OVO, Allo and BRI go through account binding instead, which needs a
+     * customer-scoped B2B2C token this package does not issue.
+     *
+     * @see https://github.com/PTNUSASATUINTIARTHA-DOKU/doku-php-library
+     */
     protected const EWALLET_CHANNELS = [
-        'EMONEY_OVO', 'EMONEY_DANA', 'EMONEY_SHOPEEPAY',
+        'EMONEY_DANA_SNAP', 'EMONEY_SHOPEE_PAY_SNAP',
     ];
 
     public function __construct(protected SnapClient $client) {}
@@ -42,14 +48,16 @@ class Doku implements Contracts\PaymentProcessor
             'VIRTUAL_ACCOUNT_BANK_MANDIRI' => 'Mandiri Virtual Account',
             'VIRTUAL_ACCOUNT_BANK_PERMATA' => 'Permata Virtual Account',
             'VIRTUAL_ACCOUNT_BANK_CIMB' => 'CIMB Niaga Virtual Account',
-            'VIRTUAL_ACCOUNT_BANK_SYARIAH_MANDIRI' => 'BSI Virtual Account',
             'VIRTUAL_ACCOUNT_BANK_DANAMON' => 'Danamon Virtual Account',
+            'VIRTUAL_ACCOUNT_BSI' => 'BSI Virtual Account',
             'VIRTUAL_ACCOUNT_BNC' => 'BNC Virtual Account',
             'VIRTUAL_ACCOUNT_BTN' => 'BTN Virtual Account',
+            'VIRTUAL_ACCOUNT_MAYBANK' => 'Maybank Virtual Account',
+            'VIRTUAL_ACCOUNT_SINARMAS' => 'Sinarmas Virtual Account',
+            'VIRTUAL_ACCOUNT_BSS' => 'Bank Sahabat Sampoerna Virtual Account',
             'VIRTUAL_ACCOUNT_DOKU' => 'DOKU Virtual Account',
-            'EMONEY_OVO' => 'OVO',
-            'EMONEY_DANA' => 'DANA',
-            'EMONEY_SHOPEEPAY' => 'ShopeePay',
+            'EMONEY_DANA_SNAP' => 'DANA',
+            'EMONEY_SHOPEE_PAY_SNAP' => 'ShopeePay',
             'QRIS' => 'QRIS',
         ]);
     }
@@ -90,11 +98,16 @@ class Doku implements Contracts\PaymentProcessor
     protected function createVirtualAccount(Payment $payment, string $channel, float $amount): Response
     {
         $partnerServiceId = $this->partnerServiceId($payment);
+        $customerNo = (string)$payment->id . (string)$payment->created_at->format("YmdHis");
+
+        if(strlen($customerNo) > 20){
+            $customerNo = substr((string) $customerNo, 0, 20);
+        }
 
         return $this->client->post(self::VIRTUAL_ACCOUNT_PATH, [
-            'partnerServiceId' => $partnerServiceId,
-            'customerNo' => '',
-            'virtualAccountNo' => trim($partnerServiceId),
+            'partnerServiceId' => trim($partnerServiceId),
+            'customerNo' => $customerNo,
+            'virtualAccountNo' => trim($partnerServiceId . $customerNo),
             'virtualAccountName' => $payment->customer_name ?: $payment->payment_code,
             'virtualAccountEmail' => $payment->customer_email,
             'virtualAccountPhone' => $payment->customer_phone,
@@ -102,6 +115,7 @@ class Doku implements Contracts\PaymentProcessor
             // C = closed amount: the customer must pay exactly this amount
             'virtualAccountTrxType' => 'C',
             'totalAmount' => self::money($amount),
+            'expiredDate' => self::expiry(),
             'additionalInfo' => [
                 'channel' => $channel,
                 'virtualAccountConfig' => ['reusableStatus' => false],
@@ -109,15 +123,30 @@ class Doku implements Contracts\PaymentProcessor
         ], 'H2H');
     }
 
+    /**
+     * Direct Debit "jump app": DOKU answers with a webRedirectUrl that hands the customer to
+     * the DANA/ShopeePay app or web checkout, and calls back to urlParam once they are done.
+     * The endpoint carries no CHANNEL-ID header, and rejects a request without urlParam.
+     *
+     * @see https://developers.doku.com/accept-payments/direct-api/snap/integration-guide/e-wallet
+     */
     protected function createEwalletCharge(Payment $payment, string $channel, float $amount): Response
     {
         return $this->client->post(self::EWALLET_PATH, [
             'partnerReferenceNo' => $payment->payment_code,
+            'validUpTo' => self::expiry(),
+            'pointOfInitiation' => 'website',
+            'urlParam' => [[
+                'url' => $this->resolveUrl(config('payment-module.doku_payment_return_url'), $payment->payment_code),
+                'type' => 'PAY_RETURN',
+                'isDeepLink' => 'N',
+            ]],
             'amount' => self::money($amount),
             'additionalInfo' => [
                 'channel' => $channel,
+                'orderTitle' => $payment->payment_code,
             ],
-        ], 'DH');
+        ], extraHeaders: ['X-IP-ADDRESS' => (string) request()->ip()]);
     }
 
     /**
@@ -140,6 +169,19 @@ class Doku implements Contracts\PaymentProcessor
                 'feeType' => '1',
             ],
         ], 'H2H');
+    }
+
+    /**
+     * When the payment stops being payable, as ISO8601 with an offset. Jakarta time, because
+     * that is the wall clock the customer sees on the VA slip and in the e-wallet app.
+     * Drives both the VA's expiredDate and the e-wallet's validUpTo.
+     */
+    protected static function expiry(): string
+    {
+        return now()
+            ->addMinutes((int) config('payment-module.doku_payment_expiry_minutes', 60))
+            ->setTimezone('Asia/Jakarta')
+            ->format('c');
     }
 
     /**

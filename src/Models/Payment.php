@@ -139,6 +139,19 @@ class Payment extends Model
         return $this->payment_response['qrContent'] ?? null;
     }
 
+    /**
+     * Checkout URL for a DOKU e-wallet (Direct Debit jump app) charge. The customer has to be
+     * sent here to approve the payment in DANA or ShopeePay.
+     */
+    public function getDokuEwalletRedirectUrl(): ?string
+    {
+        if ($this->paymentMethod->vendor !== PaymentVendor::Doku) {
+            return null;
+        }
+
+        return $this->payment_response['webRedirectUrl'] ?? null;
+    }
+
     public function getMidtransVirtualAccountNumber(): ?string
     {
         if ($this->paymentMethod->vendor == PaymentVendor::Midtrans) {

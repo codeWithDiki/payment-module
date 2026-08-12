@@ -35,7 +35,14 @@ class SnapClient
      */
     public array $lastRequest = [];
 
-    public function post(string $path, array $body, string $channelId): Response
+    /**
+     * @param  string|null  $channelId  CHANNEL-ID header, omitted when null. Direct Debit is the
+     *                                  one family of SNAP endpoints that must not carry it.
+     * @param  array<string, string>  $extraHeaders  Endpoint specific headers (X-IP-ADDRESS, ...).
+     *                                               They sit outside the signature, which covers
+     *                                               only method, path, token, body and timestamp.
+     */
+    public function post(string $path, array $body, ?string $channelId = null, array $extraHeaders = []): Response
     {
         // The signature is computed over the exact bytes we send. Encoding once and
         // passing the same string to withBody() keeps the two from ever diverging.
@@ -60,7 +67,7 @@ class SnapClient
             return $e->response;
         }
 
-        $headers = [
+        $headers = array_filter([
             'Authorization' => 'Bearer '.$token,
             'X-PARTNER-ID' => $this->clientId(),
             'X-EXTERNAL-ID' => $this->externalId(),
@@ -70,7 +77,8 @@ class SnapClient
                 self::stringToSign('POST', $path, $token, $json, $timestamp),
                 $this->clientSecret(),
             ),
-        ];
+            ...$extraHeaders,
+        ], fn (?string $value) => $value !== null && $value !== '');
 
         // The bearer token is a live 15-minute credential; never let it reach a stored log.
         $this->lastRequest = [
