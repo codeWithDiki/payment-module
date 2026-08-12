@@ -2,6 +2,8 @@
 
 namespace CodeWithDiki\PaymentModule\Supports\PaymentMethod;
 
+use CodeWithDiki\PaymentModule\Data\PaymentInstruction;
+use CodeWithDiki\PaymentModule\Enums\PaymentInstructionType;
 use CodeWithDiki\PaymentModule\Enums\PaymentStatus;
 use CodeWithDiki\PaymentModule\Events\PaymentGatewayProcessed;
 use CodeWithDiki\PaymentModule\Models\Payment;
@@ -68,10 +70,10 @@ class Doku implements Contracts\PaymentProcessor
         // Bill the customer the total (amount + payment-method fee)
         $amount = $payment->billableAmount();
 
-        $response = match (true) {
-            $channel === 'QRIS' => $this->createQrCode($payment, $amount),
-            in_array($channel, self::EWALLET_CHANNELS, true) => $this->createEwalletCharge($payment, $channel, $amount),
-            default => $this->createVirtualAccount($payment, $channel, $amount),
+        $response = match ($this->instructionType($channel)) {
+            PaymentInstructionType::Qr => $this->createQrCode($payment, $amount),
+            PaymentInstructionType::EWallet => $this->createEwalletCharge($payment, $channel, $amount),
+            PaymentInstructionType::VirtualAccount => $this->createVirtualAccount($payment, $channel, $amount),
         };
 
         $payment->update([
@@ -91,6 +93,32 @@ class Doku implements Contracts\PaymentProcessor
         PaymentGatewayProcessed::dispatch($payment);
     }
 
+    public function getPaymentInstruction(Payment $payment): ?PaymentInstruction
+    {
+        $response = $payment->payment_response ?? [];
+        $channel = $payment->paymentMethod->channel;
+
+        return new PaymentInstruction(
+            type: $this->instructionType($channel),
+            vendor: $payment->paymentMethod->vendor->value,
+            channel: $channel,
+            amount: $payment->billableAmount(),
+            // DOKU returns QRIS as an EMV string to render client side, not as an image URL
+            qr_string: $response['qrContent'] ?? null,
+            redirect_url: $response['webRedirectUrl'] ?? null,
+            virtual_account_number: $response['virtualAccountData']['virtualAccountNo'] ?? null,
+        );
+    }
+
+    protected function instructionType(string $channel): PaymentInstructionType
+    {
+        return match (true) {
+            $channel === 'QRIS' => PaymentInstructionType::Qr,
+            in_array($channel, self::EWALLET_CHANNELS, true) => PaymentInstructionType::EWallet,
+            default => PaymentInstructionType::VirtualAccount,
+        };
+    }
+
     /**
      * DOKU Generated Payment Code: we send the VA prefix and DOKU returns the full number.
      * The prefix is assigned per bank by DOKU and lives in the payment method's meta_data.
@@ -103,7 +131,7 @@ class Doku implements Contracts\PaymentProcessor
         return $this->client->post(self::VIRTUAL_ACCOUNT_PATH, [
             'partnerServiceId' => $partnerServiceId,
             'customerNo' => $customerNo,
-            'virtualAccountNo' => $partnerServiceId . $customerNo,
+            'virtualAccountNo' => $partnerServiceId.$customerNo,
             'virtualAccountName' => $payment->customer_name ?: $payment->payment_code,
             'virtualAccountEmail' => $payment->customer_email,
             'virtualAccountPhone' => $payment->customer_phone,
@@ -157,7 +185,7 @@ class Doku implements Contracts\PaymentProcessor
         return $this->client->post(self::QRIS_PATH, [
             'partnerReferenceNo' => $payment->payment_code,
             'amount' => self::money($amount),
-            'merchantId' => config('payment-module.doku_client_id'),
+            'merchantId' => $this->merchantId($payment),
             'terminalId' => (string) config('payment-module.doku_qris_terminal_id'),
             'additionalInfo' => [
                 'postalCode' => (string) config('payment-module.doku_qris_postal_code'),
@@ -200,10 +228,14 @@ class Doku implements Contracts\PaymentProcessor
 
         return str_pad(trim((string) $prefix), 8, ' ', STR_PAD_LEFT);
     }
-	
+
     protected function customerNoPrefix(Payment $payment): string
     {
         return $payment->paymentMethod->meta_data['prefix_customer_no'] ?? '';
     }
 
+    protected function merchantId(Payment $payment): string
+    {
+        return $payment->paymentMethod->meta_data['merchant_id'] ?? '';
+    }
 }

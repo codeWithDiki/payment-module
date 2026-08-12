@@ -36,11 +36,11 @@ function dokuPaymentable(): PaymentMethodGroup
     ]);
 }
 
-function dokuCreatePayment(string $channel): Payment
+function dokuCreatePayment(string $channel, array $metaData = ['partner_service_id' => '19008']): Payment
 {
     return PaymentModule::createPayment(new PaymentData(
         paymentable: dokuPaymentable(),
-        payment_method_id: dokuMethod($channel)->id,
+        payment_method_id: dokuMethod($channel, $metaData)->id,
         payment_code: 'INV-'.uniqid(),
         amount: 100000,
         status: PaymentStatus::PENDING,
@@ -146,7 +146,8 @@ it('creates a dynamic qr code for the qris channel', function () {
         ]),
     ]);
 
-    $payment = dokuCreatePayment('QRIS');
+    // merchantId is assigned per merchant by DOKU and lives on the payment method
+    $payment = dokuCreatePayment('QRIS', ['merchant_id' => 'MCH-0001-1079']);
 
     Http::assertSent(fn (Request $request) => str_contains($request->url(), '/qr/qr-mpm-generate')
         && $request['amount']['value'] === '104400.00'
@@ -243,6 +244,65 @@ it('rejects doku webhooks with an invalid signature', function () {
     dokuCredentials();
 
     dokuPostWebhook('/webhooks/doku', ['trxId' => 'INV-1'], 'not-a-valid-signature')
+        ->assertStatus(500);
+
+    expect(WebhookCall::count())->toBe(0);
+});
+
+it('marks the payment paid on a succeeded checkout notification', function () {
+    dokuCredentials();
+
+    $payment = dokuPayment(104400);
+
+    dokuPostCheckoutWebhook('/webhooks/doku', [
+        'service' => ['id' => 'VIRTUAL_ACCOUNT'],
+        'order' => ['invoice_number' => $payment->payment_code, 'amount' => 104400],
+        'transaction' => ['status' => 'SUCCESS', 'date' => '2026-08-02T10:00:00Z'],
+    ])->assertOk();
+
+    expect($payment->fresh()->status)->toBe(PaymentStatus::PAID);
+});
+
+it('marks the payment failed on an expired checkout notification', function () {
+    dokuCredentials();
+
+    $payment = dokuPayment(104400);
+
+    dokuPostCheckoutWebhook('/webhooks/doku', [
+        'order' => ['invoice_number' => $payment->payment_code, 'amount' => 104400],
+        'transaction' => ['status' => 'EXPIRED'],
+    ])->assertOk();
+
+    expect($payment->fresh()->status)->toBe(PaymentStatus::FAILED);
+});
+
+it('ignores a checkout notification whose amount does not match', function () {
+    dokuCredentials();
+
+    $payment = dokuPayment(104400);
+
+    dokuPostCheckoutWebhook('/webhooks/doku', [
+        'order' => ['invoice_number' => $payment->payment_code, 'amount' => 1000],
+        'transaction' => ['status' => 'SUCCESS'],
+    ])->assertOk();
+
+    expect($payment->fresh()->status)->toBe(PaymentStatus::PENDING);
+});
+
+it('rejects checkout webhooks with an invalid signature', function () {
+    dokuCredentials();
+
+    dokuPostCheckoutWebhook('/webhooks/doku', ['order' => ['invoice_number' => 'INV-1']], 'HMACSHA256=forged')
+        ->assertStatus(500);
+
+    expect(WebhookCall::count())->toBe(0);
+});
+
+it('rejects a checkout webhook signed for another merchant', function () {
+    dokuCredentials();
+
+    // Correctly signed against its own Client-Id, but that merchant is not us
+    dokuPostCheckoutWebhook('/webhooks/doku', ['order' => ['invoice_number' => 'INV-1']], clientId: 'MCH-0002-9999')
         ->assertStatus(500);
 
     expect(WebhookCall::count())->toBe(0);

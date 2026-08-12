@@ -67,3 +67,31 @@ function dokuPostWebhook(string $uri, array $body, ?string $signature = null): T
         'CONTENT_TYPE' => 'application/json',
     ], $payload);
 }
+
+/**
+ * Posts a DOKU Checkout notification, signed the way DOKU documents it.
+ * Pass $signature to forge an invalid one, or $clientId to impersonate another merchant.
+ */
+function dokuPostCheckoutWebhook(string $uri, array $body, ?string $signature = null, ?string $clientId = null): TestResponse
+{
+    $payload = json_encode($body);
+    $requestId = 'req-0001';
+    $timestamp = '2026-08-02T03:00:00Z';
+    $clientId ??= config('payment-module.doku_client_id');
+
+    $signature ??= 'HMACSHA256='.base64_encode(hash_hmac('sha256', implode("\n", [
+        'Client-Id:'.$clientId,
+        'Request-Id:'.$requestId,
+        'Request-Timestamp:'.$timestamp,
+        'Request-Target:'.$uri,
+        'Digest:'.base64_encode(hash('sha256', $payload, true)),
+    ]), config('payment-module.doku_client_secret'), true));
+
+    return test()->call('POST', $uri, [], [], [], [
+        'HTTP_SIGNATURE' => $signature,
+        'HTTP_CLIENT_ID' => $clientId,
+        'HTTP_REQUEST_ID' => $requestId,
+        'HTTP_REQUEST_TIMESTAMP' => $timestamp,
+        'CONTENT_TYPE' => 'application/json',
+    ], $payload);
+}

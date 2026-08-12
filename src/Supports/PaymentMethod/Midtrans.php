@@ -2,6 +2,8 @@
 
 namespace CodeWithDiki\PaymentModule\Supports\PaymentMethod;
 
+use CodeWithDiki\PaymentModule\Data\PaymentInstruction;
+use CodeWithDiki\PaymentModule\Enums\PaymentInstructionType;
 use CodeWithDiki\PaymentModule\Events\PaymentGatewayProcessed;
 use CodeWithDiki\PaymentModule\Models\Payment;
 use Illuminate\Support\Collection;
@@ -67,5 +69,42 @@ class Midtrans implements Contracts\PaymentProcessor
 
         PaymentGatewayProcessed::dispatch($payment);
 
+    }
+
+    /**
+     * Midtrans answers 201 for a charge the customer can still pay; anything else (402, 406,
+     * ...) leaves no VA number or QR to show, so there is no instruction to hand back.
+     */
+    public function getPaymentInstruction(Payment $payment): ?PaymentInstruction
+    {
+        $response = $payment->payment_response ?? [];
+
+        if (($response['status_code'] ?? null) != 201) {
+            return null;
+        }
+
+        $channel = $payment->paymentMethod->channel;
+        $actions = collect($response['actions'] ?? []);
+
+        return new PaymentInstruction(
+            type: $this->instructionType($channel),
+            vendor: $payment->paymentMethod->vendor->value,
+            channel: $channel,
+            amount: $payment->billableAmount(),
+            qr_url: $actions->firstWhere('name', 'generate-qr-code')['url'] ?? null,
+            redirect_url: $actions->firstWhere('name', 'deeplink-redirect')['url'] ?? null,
+            virtual_account_number: $channel === 'permata'
+                ? ($response['permata_va_number'] ?? null)
+                : (collect($response['va_numbers'] ?? [])->firstWhere('bank', $channel)['va_number'] ?? null),
+        );
+    }
+
+    protected function instructionType(string $channel): PaymentInstructionType
+    {
+        return match ($channel) {
+            'qris' => PaymentInstructionType::Qr,
+            'gopay', 'shopee_pay' => PaymentInstructionType::EWallet,
+            default => PaymentInstructionType::VirtualAccount,
+        };
     }
 }

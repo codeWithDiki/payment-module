@@ -124,13 +124,13 @@ class PaymentModuleServiceProvider extends PackageServiceProvider
                 array_merge($defaults, [
                     'name' => 'payment-module-doku',
                     'signature_header_name' => 'X-SIGNATURE',
-                    'signature_validator' => Webhooks\SignatureValidators\DokuSnapSignatureValidator::class,
+                    'signature_validator' => Webhooks\SignatureValidators\DokuSignatureValidator::class,
                     'process_webhook_job' => Webhooks\Jobs\ProcessDokuWebhookJob::class,
                 ]),
                 array_merge($defaults, [
                     'name' => 'payment-module-doku-disbursement',
                     'signature_header_name' => 'X-SIGNATURE',
-                    'signature_validator' => Webhooks\SignatureValidators\DokuSnapSignatureValidator::class,
+                    'signature_validator' => Webhooks\SignatureValidators\DokuSignatureValidator::class,
                     'process_webhook_job' => Webhooks\Jobs\ProcessDokuDisbursementWebhookJob::class,
                 ]),
             ]

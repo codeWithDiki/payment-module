@@ -2,6 +2,8 @@
 
 namespace CodeWithDiki\PaymentModule\Supports\PaymentMethod;
 
+use CodeWithDiki\PaymentModule\Data\PaymentInstruction;
+use CodeWithDiki\PaymentModule\Enums\PaymentInstructionType;
 use CodeWithDiki\PaymentModule\Enums\PaymentStatus;
 use CodeWithDiki\PaymentModule\Events\PaymentGatewayProcessed;
 use CodeWithDiki\PaymentModule\Models\Payment;
@@ -50,10 +52,10 @@ class Xendit implements Contracts\PaymentProcessor
         // Bill the customer the total (amount + payment-method fee)
         $amount = $payment->billableAmount();
 
-        $response = match (true) {
-            $channel === 'QRIS' => $this->createQrCode($payment, $amount),
-            in_array($channel, self::EWALLET_CHANNELS, true) => $this->createEwalletCharge($payment, $channel, $amount),
-            default => $this->createVirtualAccount($payment, $channel, $amount),
+        $response = match ($this->instructionType($channel)) {
+            PaymentInstructionType::Qr => $this->createQrCode($payment, $amount),
+            PaymentInstructionType::EWallet => $this->createEwalletCharge($payment, $channel, $amount),
+            PaymentInstructionType::VirtualAccount => $this->createVirtualAccount($payment, $channel, $amount),
         };
 
         $payment->update([
@@ -69,6 +71,37 @@ class Xendit implements Contracts\PaymentProcessor
         }
 
         PaymentGatewayProcessed::dispatch($payment);
+    }
+
+    public function getPaymentInstruction(Payment $payment): ?PaymentInstruction
+    {
+        $response = $payment->payment_response ?? [];
+        $channel = $payment->paymentMethod->channel;
+        $actions = $response['actions'] ?? [];
+
+        return new PaymentInstruction(
+            type: $this->instructionType($channel),
+            vendor: $payment->paymentMethod->vendor->value,
+            channel: $channel,
+            amount: $payment->billableAmount(),
+            qr_string: $response['qr_string'] ?? null,
+            // OVO pushes a prompt to the app and returns no checkout URL at all; the rest
+            // hand back a web checkout, with the deeplink as the mobile fallback.
+            redirect_url: $actions['desktop_web_checkout_url']
+                ?? $actions['mobile_web_checkout_url']
+                ?? $actions['mobile_deeplink_checkout_url']
+                ?? null,
+            virtual_account_number: $response['account_number'] ?? null,
+        );
+    }
+
+    protected function instructionType(string $channel): PaymentInstructionType
+    {
+        return match (true) {
+            $channel === 'QRIS' => PaymentInstructionType::Qr,
+            in_array($channel, self::EWALLET_CHANNELS, true) => PaymentInstructionType::EWallet,
+            default => PaymentInstructionType::VirtualAccount,
+        };
     }
 
     protected function createVirtualAccount(Payment $payment, string $bankCode, float $amount): Response

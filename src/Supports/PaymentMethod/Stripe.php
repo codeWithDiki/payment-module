@@ -2,6 +2,8 @@
 
 namespace CodeWithDiki\PaymentModule\Supports\PaymentMethod;
 
+use CodeWithDiki\PaymentModule\Data\PaymentInstruction;
+use CodeWithDiki\PaymentModule\Enums\PaymentInstructionType;
 use CodeWithDiki\PaymentModule\Events\PaymentGatewayProcessed;
 use CodeWithDiki\PaymentModule\Models\Payment;
 use Illuminate\Support\Collection;
@@ -76,6 +78,21 @@ class Stripe implements Contracts\PaymentProcessor
         ]);
 
         PaymentGatewayProcessed::dispatch($payment);
+    }
+
+    /**
+     * Every Stripe channel here settles through hosted checkout, so the instruction is always
+     * the same redirect — reported as EWallet because the customer flow is identical.
+     */
+    public function getPaymentInstruction(Payment $payment): ?PaymentInstruction
+    {
+        return new PaymentInstruction(
+            type: PaymentInstructionType::EWallet,
+            vendor: $payment->paymentMethod->vendor->value,
+            channel: $payment->paymentMethod->channel,
+            amount: $payment->billableAmount(),
+            redirect_url: $payment->payment_response['url'] ?? null,
+        );
     }
 
     protected function toSmallestCurrencyUnit(float $amount, string $currency): int

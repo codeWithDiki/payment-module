@@ -2,6 +2,7 @@
 
 namespace CodeWithDiki\PaymentModule\Supports\PaymentMethod\Concerns;
 
+use CodeWithDiki\PaymentModule\Data\PaymentInstruction;
 use CodeWithDiki\PaymentModule\Models\Payment;
 use Illuminate\Support\Collection;
 
@@ -17,6 +18,14 @@ trait InteractsWithPaymentProcessor
         return collect([
             'offline' => 'Offline',
         ]);
+    }
+
+    /**
+     * No gateway response to translate. Processors that charge one override this.
+     */
+    public function getPaymentInstruction(Payment $payment): ?PaymentInstruction
+    {
+        return null;
     }
 
     /**

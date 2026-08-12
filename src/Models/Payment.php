@@ -2,6 +2,7 @@
 
 namespace CodeWithDiki\PaymentModule\Models;
 
+use CodeWithDiki\PaymentModule\Data\PaymentInstruction;
 use CodeWithDiki\PaymentModule\Enums\PaymentStatus;
 use CodeWithDiki\PaymentModule\Enums\PaymentVendor;
 use Illuminate\Database\Eloquent\Attributes\Scope;
@@ -99,69 +100,59 @@ class Payment extends Model
         $query->where('status', PaymentStatus::FAILED);
     }
 
+    /**
+     * Gateway response in the shared shape, whichever vendor produced it: the vendor's own
+     * processor does the translating, so callers switch on $instruction->type instead of
+     * on the vendor. Null when there is nothing for the customer to act on.
+     */
+    public function instruction(): ?PaymentInstruction
+    {
+        return app($this->paymentMethod->vendor->getPaymentProcessorClass())
+            ->getPaymentInstruction($this);
+    }
+
+    /** @deprecated Use instruction()->qr_url */
     public function getQrCodeUrl(): ?string
     {
-        if ($this->paymentMethod->vendor == PaymentVendor::Midtrans) {
-            return (($this->payment_response['status_code'] ?? null) == 201) ? (collect($this->payment_response['actions'] ?? [])->firstWhere('name', 'generate-qr-code')['url'] ?? null) : null;
-        }
-
-        return null;
+        return $this->instruction()?->qr_url;
     }
 
+    /** @deprecated Use instruction()->redirect_url */
     public function getStripeCheckoutUrl(): ?string
     {
-        if ($this->paymentMethod->vendor == PaymentVendor::Stripe) {
-            return $this->payment_response['url'] ?? null;
-        }
-
-        return null;
+        return $this->vendorInstruction(PaymentVendor::Stripe)?->redirect_url;
     }
 
+    /** @deprecated Use instruction()->virtual_account_number */
     public function getDokuVirtualAccountNumber(): ?string
     {
-        if ($this->paymentMethod->vendor !== PaymentVendor::Doku) {
-            return null;
-        }
-
-        return $this->payment_response['virtualAccountData']['virtualAccountNo'] ?? null;
+        return $this->vendorInstruction(PaymentVendor::Doku)?->virtual_account_number;
     }
 
-    /**
-     * Raw EMV payload for a DOKU QRIS transaction. DOKU returns the QR content as a string
-     * to be rendered client side, not as an image URL, so getQrCodeUrl() does not apply.
-     */
+    /** @deprecated Use instruction()->qr_string */
     public function getDokuQrString(): ?string
     {
-        if ($this->paymentMethod->vendor !== PaymentVendor::Doku) {
-            return null;
-        }
+        return $this->vendorInstruction(PaymentVendor::Doku)?->qr_string;
+    }
 
-        return $this->payment_response['qrContent'] ?? null;
+    /** @deprecated Use instruction()->redirect_url */
+    public function getDokuEwalletRedirectUrl(): ?string
+    {
+        return $this->vendorInstruction(PaymentVendor::Doku)?->redirect_url;
+    }
+
+    /** @deprecated Use instruction()->virtual_account_number */
+    public function getMidtransVirtualAccountNumber(): ?string
+    {
+        return $this->vendorInstruction(PaymentVendor::Midtrans)?->virtual_account_number;
     }
 
     /**
-     * Checkout URL for a DOKU e-wallet (Direct Debit jump app) charge. The customer has to be
-     * sent here to approve the payment in DANA or ShopeePay.
+     * Instruction, but only for one vendor — keeps the deprecated per-vendor accessors
+     * returning null on a payment made through a different gateway.
      */
-    public function getDokuEwalletRedirectUrl(): ?string
+    protected function vendorInstruction(PaymentVendor $vendor): ?PaymentInstruction
     {
-        if ($this->paymentMethod->vendor !== PaymentVendor::Doku) {
-            return null;
-        }
-
-        return $this->payment_response['webRedirectUrl'] ?? null;
-    }
-
-    public function getMidtransVirtualAccountNumber(): ?string
-    {
-        if ($this->paymentMethod->vendor == PaymentVendor::Midtrans) {
-            if ($this->paymentMethod->channel == 'permata') {
-                return (($this->payment_response['status_code'] ?? null) == 201) ? ($this->payment_response['permata_va_number'] ?? null) : null;
-            }
-
-            return (($this->payment_response['status_code'] ?? null) == 201) ? (collect($this->payment_response['va_numbers'] ?? [])->firstWhere('bank', $this->paymentMethod->channel)['va_number'] ?? null) : null;
-        }
-
-        return null;
+        return $this->paymentMethod->vendor === $vendor ? $this->instruction() : null;
     }
 }

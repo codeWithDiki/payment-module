@@ -397,6 +397,8 @@ PaymentModule::createPaymentMethod(new PaymentMethodData(
 > ]);
 > ```
 >
+> Kunci `meta_data` lain yang dibaca processor DOKU: `prefix_customer_no` (opsional, digabung ke `virtualAccountNo`) dan `merchant_id` — **wajib untuk channel `QRIS`**, karena `merchantId` di `qr-mpm-generate` berbeda per merchant.
+>
 > Nomor VA-nya digenerate DOKU (mode *DOKU Generated Payment Code*) dan bisa dibaca lewat `$payment->getDokuVirtualAccountNumber()`. Untuk QRIS, isi EMV-nya ada di `$payment->getDokuQrString()` — DOKU mengembalikan string QR, bukan URL gambar, jadi render sendiri di sisi klien.
 >
 > Channel `EMONEY_*` dikirim ke endpoint **Direct Debit jump app**, jadi butuh `DOKU_PAYMENT_RETURN_URL` terisi. DOKU membalas dengan URL checkout yang bisa dibaca lewat `$payment->getDokuEwalletRedirectUrl()` — arahkan pelanggan ke sana untuk menyetujui pembayaran di aplikasi DANA/ShopeePay.
@@ -473,6 +475,33 @@ $payment = PaymentModule::createPayment(new PaymentData(
 ```
 
 Begitu `createPayment()` dipanggil, transaksi disimpan ke database lalu event `PaymentCreated` langsung di-dispatch. Listener `ProcessingPaymentGateway` yang berjalan **secara asinkron via queue** (mengimplementasikan `ShouldQueue`) akan memilih processor yang tepat berdasarkan vendor dan memanggil `processPayment()`.
+
+### Mengambil instruksi pembayaran (semua gateway)
+
+`$payment->instruction()` mengembalikan response gateway dalam **satu bentuk yang sama**, apa pun vendornya. Processor milik vendor itu sendiri yang menerjemahkan response-nya, jadi kamu cukup bercabang berdasarkan `type`, bukan berdasarkan vendor:
+
+```php
+$instruction = $payment->instruction(); // null kalau tidak ada yang perlu dibayar (channel offline / charge ditolak)
+
+match ($instruction->type) {
+    PaymentInstructionType::Qr             => $instruction->qr_string ?? $instruction->qr_url,
+    PaymentInstructionType::EWallet        => redirect()->away($instruction->redirect_url),
+    PaymentInstructionType::VirtualAccount => $instruction->virtual_account_number,
+};
+```
+
+| Field | Isi |
+|---|---|
+| `type` | `qr`, `ewallet`, atau `virtual_account` |
+| `vendor`, `channel`, `amount` | Vendor, channel, dan nominal yang ditagih (amount + fee) |
+| `qr_string` | Payload EMV untuk dirender sendiri (DOKU, Xendit) |
+| `qr_url` | URL gambar QR (Midtrans) |
+| `redirect_url` | URL checkout e-wallet, termasuk hosted checkout Stripe |
+| `virtual_account_number` | Nomor VA hasil generate gateway |
+
+`PaymentInstruction` adalah Spatie Data, jadi bisa langsung di-`return` dari controller sebagai JSON.
+
+> Accessor per vendor di bawah ini (`getQrCodeUrl()`, `getMidtransVirtualAccountNumber()`, `getStripeCheckoutUrl()`, `getDoku*()`) masih jalan tapi sudah **deprecated** — semuanya sekarang cuma membaca `instruction()`.
 
 ### Mengambil QR Code URL (khusus QRIS via Midtrans)
 
@@ -654,14 +683,21 @@ POST https://domain-kamu.com/webhooks/doku
 
 Daftarkan URL tersebut sebagai **Notification URL** di dashboard DOKU (Integration → Notification URL), lalu pastikan `DOKU_CLIENT_SECRET` terisi.
 
-DOKU menandatangani notifikasi dengan **HMAC-SHA512** di header `X-SIGNATURE`, dihitung atas `METHOD:path:accessToken:hex(sha256(body)):timestamp` — perhatikan bahwa `path` di sini adalah path Notification URL **kita**, bukan path DOKU. `DokuSnapSignatureValidator` menghitung ulang signature itu dan membandingkannya secara timing-safe; bila `DOKU_CLIENT_SECRET` belum diisi, semua notifikasi ditolak. Lalu `ProcessDokuWebhookJob`:
+DOKU menandatangani notifikasi dengan **dua cara berbeda**, tergantung produk mana yang mengirimnya — dan satu merchant bisa mengaktifkan keduanya sekaligus. `DokuSignatureValidator` memilih berdasarkan header yang datang, dan menolak semua notifikasi bila `DOKU_CLIENT_SECRET` belum diisi:
 
-1. Menormalkan payload lintas produk — Virtual Account memakai `trxId`, e-wallet dan QRIS memakai `originalPartnerReferenceNo`; keduanya berisi `payment_code`.
-2. Memetakan status ke `PaymentStatus` (`latestTransactionStatus` `00` → `PAID`, `04`/`05`/`06` → `FAILED`, `03` diabaikan karena masih pending; notifikasi VA yang membawa `paidAmount` dianggap `PAID`).
+| Produk | Header | Algoritma | Komponen yang ditandatangani |
+|--------|--------|-----------|------------------------------|
+| SNAP (Direct API) | `X-SIGNATURE`, `X-TIMESTAMP` | HMAC-SHA512 | `METHOD:path:accessToken:hex(sha256(body)):timestamp` — `path` di sini adalah path Notification URL **kita**, bukan path DOKU |
+| Checkout / Jokul | `Signature`, `Client-Id`, `Request-Id`, `Request-Timestamp` | HMAC-SHA256, ber-prefix `HMACSHA256=` | `Client-Id`, `Request-Id`, `Request-Timestamp`, `Request-Target`, dan `Digest` (base64 sha256 body) — digabung dengan newline, bukan raw body |
+
+Untuk Checkout, `Client-Id` di header juga dicocokkan dengan `DOKU_CLIENT_ID`: notifikasi yang ditandatangani untuk merchant lain ditolak. Lalu `ProcessDokuWebhookJob`:
+
+1. Menormalkan payload lintas produk — Virtual Account memakai `trxId`, e-wallet dan QRIS memakai `originalPartnerReferenceNo`, Checkout memakai `order.invoice_number`; semuanya berisi `payment_code`.
+2. Memetakan status ke `PaymentStatus` (`transaction.status` `SUCCESS` → `PAID`, `FAILED`/`EXPIRED` → `FAILED`; `latestTransactionStatus` `00` → `PAID`, `04`/`05`/`06` → `FAILED`, `03` diabaikan karena masih pending; notifikasi VA yang membawa `paidAmount` dianggap `PAID`).
 3. **Memverifikasi nominal** notifikasi terhadap `total_amount` sebelum menandai `PAID`.
 4. Memanggil `setPaymentStatus()`.
 
-> **Catatan integrasi.** Dokumentasi DOKU menyertakan *access token* di dalam string yang ditandatangani, tapi tidak menjelaskan token mana yang mereka pakai saat menandatangani notifikasi **ke** kita. Validator karenanya mencoba access token B2B yang sedang di-cache dan juga token kosong — keduanya tetap memerlukan client secret, jadi ini tidak melemahkan verifikasi. Konfirmasikan perilaku sebenarnya terhadap sandbox DOKU saat integration testing, lalu hapus kandidat yang tidak terpakai di `DokuSnapSignatureValidator`.
+> **Catatan integrasi.** Dokumentasi DOKU menyertakan *access token* di dalam string yang ditandatangani untuk SNAP, tapi tidak menjelaskan token mana yang mereka pakai saat menandatangani notifikasi **ke** kita. Validator karenanya mencoba access token B2B yang sedang di-cache dan juga token kosong — keduanya tetap memerlukan client secret, jadi ini tidak melemahkan verifikasi. Konfirmasikan perilaku sebenarnya terhadap sandbox DOKU saat integration testing, lalu hapus kandidat yang tidak terpakai di `DokuSignatureValidator`.
 
 ---
 
