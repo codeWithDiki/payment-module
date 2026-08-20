@@ -78,6 +78,14 @@ return [
     'doku_sender_personal_id_type' => env('DOKU_SENDER_PERSONAL_ID_TYPE', 'KTP'),
     'doku_sender_country_code' => env('DOKU_SENDER_COUNTRY_CODE', 'ID'),
 
+    /** Flip for Business Config */
+    'flip_secret_key' => env('FLIP_SECRET_KEY', ''),
+    // Validation token from the Flip dashboard, included as token_validation in every callback
+    'flip_validation_token' => env('FLIP_VALIDATION_TOKEN', ''),
+    'flip_is_production' => env('FLIP_IS_PRODUCTION', false),
+    // URL the customer is redirected to after completing payment; {payment_code} is replaced at bill time
+    'flip_redirect_url' => env('FLIP_REDIRECT_URL', ''),
+
     'vendor_enum_class' => PaymentVendor::class,
 
     'webhook' => [

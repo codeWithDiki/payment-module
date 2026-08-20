@@ -64,6 +64,8 @@ class PaymentModuleServiceProvider extends PackageServiceProvider
                 Route::webhooks('xendit/disbursement', 'payment-module-xendit-disbursement');
                 Route::webhooks('doku', 'payment-module-doku');
                 Route::webhooks('doku/disbursement', 'payment-module-doku-disbursement');
+                Route::webhooks('flip', 'payment-module-flip');
+                Route::webhooks('flip/disbursement', 'payment-module-flip-disbursement');
             });
     }
 
@@ -132,6 +134,20 @@ class PaymentModuleServiceProvider extends PackageServiceProvider
                     'signature_header_name' => 'X-SIGNATURE',
                     'signature_validator' => Webhooks\SignatureValidators\DokuSignatureValidator::class,
                     'process_webhook_job' => Webhooks\Jobs\ProcessDokuDisbursementWebhookJob::class,
+                ]),
+                // Flip sends token_validation in the request body rather than a header;
+                // signature_header_name is a required config key so we pass a placeholder.
+                array_merge($defaults, [
+                    'name' => 'payment-module-flip',
+                    'signature_header_name' => 'X-Flip-Signature',
+                    'signature_validator' => Webhooks\SignatureValidators\FlipSignatureValidator::class,
+                    'process_webhook_job' => Webhooks\Jobs\ProcessFlipWebhookJob::class,
+                ]),
+                array_merge($defaults, [
+                    'name' => 'payment-module-flip-disbursement',
+                    'signature_header_name' => 'X-Flip-Signature',
+                    'signature_validator' => Webhooks\SignatureValidators\FlipSignatureValidator::class,
+                    'process_webhook_job' => Webhooks\Jobs\ProcessFlipDisbursementWebhookJob::class,
                 ]),
             ]
         ));
