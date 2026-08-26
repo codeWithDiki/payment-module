@@ -44,6 +44,8 @@ it('sends the payout to xendit and stores the reference on creation', function (
         return str_contains($request->url(), '/disbursements')
             && $request->hasHeader('X-IDEMPOTENCY-KEY', $disbursement->disbursement_code)
             && $request->hasHeader('Authorization', 'Basic '.base64_encode('xnd_secret:'))
+            && $request['external_id'] === $disbursement->disbursement_code
+            && $request['callback_url'] === url('webhooks/xendit/disbursement')
             && $request['bank_code'] === 'BCA'
             && $request['account_holder_name'] === 'Budi Santoso'
             && $request['account_number'] === '1234567890'

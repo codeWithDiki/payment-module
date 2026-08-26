@@ -17,15 +17,21 @@ class XenditDisbursement implements Contracts\DisbursementProcessor
     {
         // Xendit disburses immediately (single-step, no maker-approver), so the payout
         // is sent as soon as the disbursement is created.
-        $payload = array_filter([
-            'external_id' => $disbursement->disbursement_code,
+        // external_id and callback_url are mandatory per Xendit's API schema;
+        // no array_filter here or an empty code silently drops the field.
+        $payload = [
+            'external_id' => (string) $disbursement->disbursement_code,
             'amount' => $disbursement->amount,
             'bank_code' => $disbursement->beneficiary_bank,
             'account_holder_name' => $disbursement->beneficiary_name,
             'account_number' => $disbursement->beneficiary_account,
             'description' => $disbursement->notes ?: 'Disbursement '.$disbursement->disbursement_code,
-            'email_to' => $disbursement->beneficiary_email ? [$disbursement->beneficiary_email] : null,
-        ]);
+            'callback_url' => url(config('payment-module.webhook.prefix', 'webhooks').'/xendit/disbursement'),
+        ];
+
+        if ($disbursement->beneficiary_email) {
+            $payload['email_to'] = [$disbursement->beneficiary_email];
+        }
 
         $response = $this->client()
             ->withHeaders(['X-IDEMPOTENCY-KEY' => $disbursement->disbursement_code])
