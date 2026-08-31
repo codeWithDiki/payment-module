@@ -20,6 +20,7 @@ class ProcessXenditWebhookJob extends ProcessWebhookJob
         $reference = $payload['external_id']
             ?? $data['reference_id']
             ?? $data['external_id']
+            ?? $payload['qr_code']['external_id']
             ?? null;
 
         if (! $reference) {
