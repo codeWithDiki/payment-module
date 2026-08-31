@@ -50,6 +50,7 @@ return [
     // Redirect URLs for e-wallet checkout; {payment_code} is replaced at charge time
     'xendit_success_redirect_url' => env('XENDIT_SUCCESS_REDIRECT_URL', ''),
     'xendit_failure_redirect_url' => env('XENDIT_FAILURE_REDIRECT_URL', ''),
+    'xendit_callback_url' => env("XENDIT_CALLBACK_URL", null),
 
     /** Doku Config */
     'doku_client_id' => env('DOKU_CLIENT_ID', ''),

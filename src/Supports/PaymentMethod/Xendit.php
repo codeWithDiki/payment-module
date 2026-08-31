@@ -109,7 +109,7 @@ class Xendit implements Contracts\PaymentProcessor
         return $this->client()
             ->post('/callback_virtual_accounts', [
                 'external_id' => $payment->payment_code,
-                'callback_url' => route('webhook-client-payment-module-xendit'),
+                'callback_url' => config('payment-module.xendit_callback_url') ?? route('webhook-client-payment-module-xendit'),
                 'bank_code' => $bankCode,
                 'name' => $payment->customer_name ?: $payment->payment_code,
                 'is_closed' => true,
@@ -126,7 +126,7 @@ class Xendit implements Contracts\PaymentProcessor
                 'currency' => 'IDR',
                 'amount' => $amount,
                 'external_id' => $payment->payment_code,
-                'callback_url' => route('webhook-client-payment-module-xendit'),
+                'callback_url' => config('payment-module.xendit_callback_url') ?? route('webhook-client-payment-module-xendit'),
                 'checkout_method' => 'ONE_TIME_PAYMENT',
                 'channel_code' => $channelCode,
                 'channel_properties' => array_filter([
@@ -141,7 +141,7 @@ class Xendit implements Contracts\PaymentProcessor
         return $this->client()
             ->post('/qr_codes', [
                 'external_id' => $payment->payment_code,
-                'callback_url' => route('webhook-client-payment-module-xendit'),
+                'callback_url' => config('payment-module.xendit_callback_url') ?? route('webhook-client-payment-module-xendit'),
                 'reference_id' => $payment->payment_code,
                 'type' => 'DYNAMIC',
                 'currency' => 'IDR',
