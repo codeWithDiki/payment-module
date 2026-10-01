@@ -1,0 +1,391 @@
+parameters:
+	ignoreErrors:
+		-
+			message: '#^Called ''env'' outside of the config directory which returns null when the config is cached, use ''config''\.$#'
+			identifier: larastan.noEnvCallsOutsideOfConfig
+			count: 44
+			path: config/payment-module.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$id\.$#'
+			identifier: property.notFound
+			count: 2
+			path: src/PaymentModule.php
+
+		-
+			message: '#^Instanceof between CodeWithDiki\\PaymentModule\\Enums\\DisbursementStatus and CodeWithDiki\\PaymentModule\\Enums\\DisbursementStatus will always evaluate to true\.$#'
+			identifier: instanceof.alwaysTrue
+			count: 1
+			path: src/PaymentModule.php
+
+		-
+			message: '#^Instanceof between CodeWithDiki\\PaymentModule\\Enums\\PaymentStatus and CodeWithDiki\\PaymentModule\\Enums\\PaymentStatus will always evaluate to true\.$#'
+			identifier: instanceof.alwaysTrue
+			count: 1
+			path: src/PaymentModule.php
+
+		-
+			message: '#^Access to constant OutlinedBanknotes on an unknown class Filament\\Support\\Icons\\Heroicon\.$#'
+			identifier: class.notFound
+			count: 1
+			path: src/Resources/Disbursements/DisbursementResource.php
+
+		-
+			message: '#^Access to constant OutlinedCheckCircle on an unknown class Filament\\Support\\Icons\\Heroicon\.$#'
+			identifier: class.notFound
+			count: 1
+			path: src/Resources/Disbursements/DisbursementResource.php
+
+		-
+			message: '#^Access to constant OutlinedXCircle on an unknown class Filament\\Support\\Icons\\Heroicon\.$#'
+			identifier: class.notFound
+			count: 1
+			path: src/Resources/Disbursements/DisbursementResource.php
+
+		-
+			message: '#^Call to an undefined method Filament\\Actions\\Action\:\:schema\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: src/Resources/Disbursements/DisbursementResource.php
+
+		-
+			message: '#^Method CodeWithDiki\\PaymentModule\\Resources\\Disbursements\\DisbursementResource\:\:form\(\) has invalid return type Filament\\Schemas\\Schema\.$#'
+			identifier: class.notFound
+			count: 1
+			path: src/Resources/Disbursements/DisbursementResource.php
+
+		-
+			message: '#^Method CodeWithDiki\\PaymentModule\\Resources\\Disbursements\\DisbursementResource\:\:infolist\(\) has invalid return type Filament\\Schemas\\Schema\.$#'
+			identifier: class.notFound
+			count: 1
+			path: src/Resources/Disbursements/DisbursementResource.php
+
+		-
+			message: '#^Parameter \$schema of method CodeWithDiki\\PaymentModule\\Resources\\Disbursements\\DisbursementResource\:\:form\(\) has invalid type Filament\\Schemas\\Schema\.$#'
+			identifier: class.notFound
+			count: 1
+			path: src/Resources/Disbursements/DisbursementResource.php
+
+		-
+			message: '#^Parameter \$schema of method CodeWithDiki\\PaymentModule\\Resources\\Disbursements\\DisbursementResource\:\:infolist\(\) has invalid type Filament\\Schemas\\Schema\.$#'
+			identifier: class.notFound
+			count: 1
+			path: src/Resources/Disbursements/DisbursementResource.php
+
+		-
+			message: '#^Call to method components\(\) on an unknown class Filament\\Schemas\\Schema\.$#'
+			identifier: class.notFound
+			count: 1
+			path: src/Resources/Disbursements/Schemas/DisbursementForm.php
+
+		-
+			message: '#^Method CodeWithDiki\\PaymentModule\\Resources\\Disbursements\\Schemas\\DisbursementForm\:\:configure\(\) has invalid return type Filament\\Schemas\\Schema\.$#'
+			identifier: class.notFound
+			count: 1
+			path: src/Resources/Disbursements/Schemas/DisbursementForm.php
+
+		-
+			message: '#^Parameter \$schema of method CodeWithDiki\\PaymentModule\\Resources\\Disbursements\\Schemas\\DisbursementForm\:\:configure\(\) has invalid type Filament\\Schemas\\Schema\.$#'
+			identifier: class.notFound
+			count: 1
+			path: src/Resources/Disbursements/Schemas/DisbursementForm.php
+
+		-
+			message: '#^Call to method components\(\) on an unknown class Filament\\Schemas\\Schema\.$#'
+			identifier: class.notFound
+			count: 1
+			path: src/Resources/Disbursements/Schemas/DisbursementInfolist.php
+
+		-
+			message: '#^Method CodeWithDiki\\PaymentModule\\Resources\\Disbursements\\Schemas\\DisbursementInfolist\:\:configure\(\) has invalid return type Filament\\Schemas\\Schema\.$#'
+			identifier: class.notFound
+			count: 1
+			path: src/Resources/Disbursements/Schemas/DisbursementInfolist.php
+
+		-
+			message: '#^Parameter \$schema of method CodeWithDiki\\PaymentModule\\Resources\\Disbursements\\Schemas\\DisbursementInfolist\:\:configure\(\) has invalid type Filament\\Schemas\\Schema\.$#'
+			identifier: class.notFound
+			count: 1
+			path: src/Resources/Disbursements/Schemas/DisbursementInfolist.php
+
+		-
+			message: '#^Call to an undefined method Filament\\Tables\\Table\:\:recordActions\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: src/Resources/Disbursements/Tables/DisbursementsTable.php
+
+		-
+			message: '#^Call to static method make\(\) on an unknown class Filament\\Actions\\BulkActionGroup\.$#'
+			identifier: class.notFound
+			count: 1
+			path: src/Resources/Disbursements/Tables/DisbursementsTable.php
+
+		-
+			message: '#^Access to constant OutlinedCircleStack on an unknown class Filament\\Support\\Icons\\Heroicon\.$#'
+			identifier: class.notFound
+			count: 1
+			path: src/Resources/PaymentMethodGroups/PaymentMethodGroupResource.php
+
+		-
+			message: '#^Method CodeWithDiki\\PaymentModule\\Resources\\PaymentMethodGroups\\PaymentMethodGroupResource\:\:form\(\) has invalid return type Filament\\Schemas\\Schema\.$#'
+			identifier: class.notFound
+			count: 1
+			path: src/Resources/PaymentMethodGroups/PaymentMethodGroupResource.php
+
+		-
+			message: '#^Method CodeWithDiki\\PaymentModule\\Resources\\PaymentMethodGroups\\PaymentMethodGroupResource\:\:infolist\(\) has invalid return type Filament\\Schemas\\Schema\.$#'
+			identifier: class.notFound
+			count: 1
+			path: src/Resources/PaymentMethodGroups/PaymentMethodGroupResource.php
+
+		-
+			message: '#^Parameter \$schema of method CodeWithDiki\\PaymentModule\\Resources\\PaymentMethodGroups\\PaymentMethodGroupResource\:\:form\(\) has invalid type Filament\\Schemas\\Schema\.$#'
+			identifier: class.notFound
+			count: 1
+			path: src/Resources/PaymentMethodGroups/PaymentMethodGroupResource.php
+
+		-
+			message: '#^Parameter \$schema of method CodeWithDiki\\PaymentModule\\Resources\\PaymentMethodGroups\\PaymentMethodGroupResource\:\:infolist\(\) has invalid type Filament\\Schemas\\Schema\.$#'
+			identifier: class.notFound
+			count: 1
+			path: src/Resources/PaymentMethodGroups/PaymentMethodGroupResource.php
+
+		-
+			message: '#^Call to method components\(\) on an unknown class Filament\\Schemas\\Schema\.$#'
+			identifier: class.notFound
+			count: 1
+			path: src/Resources/PaymentMethodGroups/Schemas/PaymentMethodGroupForm.php
+
+		-
+			message: '#^Call to static method make\(\) on an unknown class Filament\\Schemas\\Components\\Section\.$#'
+			identifier: class.notFound
+			count: 1
+			path: src/Resources/PaymentMethodGroups/Schemas/PaymentMethodGroupForm.php
+
+		-
+			message: '#^Method CodeWithDiki\\PaymentModule\\Resources\\PaymentMethodGroups\\Schemas\\PaymentMethodGroupForm\:\:configure\(\) has invalid return type Filament\\Schemas\\Schema\.$#'
+			identifier: class.notFound
+			count: 1
+			path: src/Resources/PaymentMethodGroups/Schemas/PaymentMethodGroupForm.php
+
+		-
+			message: '#^Parameter \$schema of method CodeWithDiki\\PaymentModule\\Resources\\PaymentMethodGroups\\Schemas\\PaymentMethodGroupForm\:\:configure\(\) has invalid type Filament\\Schemas\\Schema\.$#'
+			identifier: class.notFound
+			count: 1
+			path: src/Resources/PaymentMethodGroups/Schemas/PaymentMethodGroupForm.php
+
+		-
+			message: '#^Call to method components\(\) on an unknown class Filament\\Schemas\\Schema\.$#'
+			identifier: class.notFound
+			count: 1
+			path: src/Resources/PaymentMethodGroups/Schemas/PaymentMethodGroupInfolist.php
+
+		-
+			message: '#^Method CodeWithDiki\\PaymentModule\\Resources\\PaymentMethodGroups\\Schemas\\PaymentMethodGroupInfolist\:\:configure\(\) has invalid return type Filament\\Schemas\\Schema\.$#'
+			identifier: class.notFound
+			count: 1
+			path: src/Resources/PaymentMethodGroups/Schemas/PaymentMethodGroupInfolist.php
+
+		-
+			message: '#^Parameter \$schema of method CodeWithDiki\\PaymentModule\\Resources\\PaymentMethodGroups\\Schemas\\PaymentMethodGroupInfolist\:\:configure\(\) has invalid type Filament\\Schemas\\Schema\.$#'
+			identifier: class.notFound
+			count: 1
+			path: src/Resources/PaymentMethodGroups/Schemas/PaymentMethodGroupInfolist.php
+
+		-
+			message: '#^Call to an undefined method Filament\\Tables\\Table\:\:recordActions\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: src/Resources/PaymentMethodGroups/Tables/PaymentMethodGroupsTable.php
+
+		-
+			message: '#^Call to static method make\(\) on an unknown class Filament\\Actions\\BulkActionGroup\.$#'
+			identifier: class.notFound
+			count: 1
+			path: src/Resources/PaymentMethodGroups/Tables/PaymentMethodGroupsTable.php
+
+		-
+			message: '#^Call to static method make\(\) on an unknown class Filament\\Actions\\DeleteBulkAction\.$#'
+			identifier: class.notFound
+			count: 1
+			path: src/Resources/PaymentMethodGroups/Tables/PaymentMethodGroupsTable.php
+
+		-
+			message: '#^Access to constant OutlinedCreditCard on an unknown class Filament\\Support\\Icons\\Heroicon\.$#'
+			identifier: class.notFound
+			count: 1
+			path: src/Resources/PaymentMethods/PaymentMethodResource.php
+
+		-
+			message: '#^Method CodeWithDiki\\PaymentModule\\Resources\\PaymentMethods\\PaymentMethodResource\:\:form\(\) has invalid return type Filament\\Schemas\\Schema\.$#'
+			identifier: class.notFound
+			count: 1
+			path: src/Resources/PaymentMethods/PaymentMethodResource.php
+
+		-
+			message: '#^Method CodeWithDiki\\PaymentModule\\Resources\\PaymentMethods\\PaymentMethodResource\:\:infolist\(\) has invalid return type Filament\\Schemas\\Schema\.$#'
+			identifier: class.notFound
+			count: 1
+			path: src/Resources/PaymentMethods/PaymentMethodResource.php
+
+		-
+			message: '#^Parameter \$schema of method CodeWithDiki\\PaymentModule\\Resources\\PaymentMethods\\PaymentMethodResource\:\:form\(\) has invalid type Filament\\Schemas\\Schema\.$#'
+			identifier: class.notFound
+			count: 1
+			path: src/Resources/PaymentMethods/PaymentMethodResource.php
+
+		-
+			message: '#^Parameter \$schema of method CodeWithDiki\\PaymentModule\\Resources\\PaymentMethods\\PaymentMethodResource\:\:infolist\(\) has invalid type Filament\\Schemas\\Schema\.$#'
+			identifier: class.notFound
+			count: 1
+			path: src/Resources/PaymentMethods/PaymentMethodResource.php
+
+		-
+			message: '#^Call to method components\(\) on an unknown class Filament\\Schemas\\Schema\.$#'
+			identifier: class.notFound
+			count: 1
+			path: src/Resources/PaymentMethods/Schemas/PaymentMethodForm.php
+
+		-
+			message: '#^Call to static method make\(\) on an unknown class Filament\\Schemas\\Components\\Section\.$#'
+			identifier: class.notFound
+			count: 1
+			path: src/Resources/PaymentMethods/Schemas/PaymentMethodForm.php
+
+		-
+			message: '#^Method CodeWithDiki\\PaymentModule\\Resources\\PaymentMethods\\Schemas\\PaymentMethodForm\:\:configure\(\) has invalid return type Filament\\Schemas\\Schema\.$#'
+			identifier: class.notFound
+			count: 1
+			path: src/Resources/PaymentMethods/Schemas/PaymentMethodForm.php
+
+		-
+			message: '#^Parameter \$schema of method CodeWithDiki\\PaymentModule\\Resources\\PaymentMethods\\Schemas\\PaymentMethodForm\:\:configure\(\) has invalid type Filament\\Schemas\\Schema\.$#'
+			identifier: class.notFound
+			count: 1
+			path: src/Resources/PaymentMethods/Schemas/PaymentMethodForm.php
+
+		-
+			message: '#^Using nullsafe method call on non\-nullable type mixed\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: src/Resources/PaymentMethods/Schemas/PaymentMethodForm.php
+
+		-
+			message: '#^Call to method components\(\) on an unknown class Filament\\Schemas\\Schema\.$#'
+			identifier: class.notFound
+			count: 1
+			path: src/Resources/PaymentMethods/Schemas/PaymentMethodInfolist.php
+
+		-
+			message: '#^Method CodeWithDiki\\PaymentModule\\Resources\\PaymentMethods\\Schemas\\PaymentMethodInfolist\:\:configure\(\) has invalid return type Filament\\Schemas\\Schema\.$#'
+			identifier: class.notFound
+			count: 1
+			path: src/Resources/PaymentMethods/Schemas/PaymentMethodInfolist.php
+
+		-
+			message: '#^Parameter \$schema of method CodeWithDiki\\PaymentModule\\Resources\\PaymentMethods\\Schemas\\PaymentMethodInfolist\:\:configure\(\) has invalid type Filament\\Schemas\\Schema\.$#'
+			identifier: class.notFound
+			count: 1
+			path: src/Resources/PaymentMethods/Schemas/PaymentMethodInfolist.php
+
+		-
+			message: '#^Call to an undefined method Filament\\Tables\\Table\:\:recordActions\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: src/Resources/PaymentMethods/Tables/PaymentMethodsTable.php
+
+		-
+			message: '#^Call to static method make\(\) on an unknown class Filament\\Actions\\BulkActionGroup\.$#'
+			identifier: class.notFound
+			count: 1
+			path: src/Resources/PaymentMethods/Tables/PaymentMethodsTable.php
+
+		-
+			message: '#^Call to static method make\(\) on an unknown class Filament\\Actions\\DeleteBulkAction\.$#'
+			identifier: class.notFound
+			count: 1
+			path: src/Resources/PaymentMethods/Tables/PaymentMethodsTable.php
+
+		-
+			message: '#^Access to constant OutlinedCheckCircle on an unknown class Filament\\Support\\Icons\\Heroicon\.$#'
+			identifier: class.notFound
+			count: 1
+			path: src/Resources/Payments/PaymentResource.php
+
+		-
+			message: '#^Access to constant OutlinedCurrencyDollar on an unknown class Filament\\Support\\Icons\\Heroicon\.$#'
+			identifier: class.notFound
+			count: 1
+			path: src/Resources/Payments/PaymentResource.php
+
+		-
+			message: '#^Method CodeWithDiki\\PaymentModule\\Resources\\Payments\\PaymentResource\:\:form\(\) has invalid return type Filament\\Schemas\\Schema\.$#'
+			identifier: class.notFound
+			count: 1
+			path: src/Resources/Payments/PaymentResource.php
+
+		-
+			message: '#^Method CodeWithDiki\\PaymentModule\\Resources\\Payments\\PaymentResource\:\:infolist\(\) has invalid return type Filament\\Schemas\\Schema\.$#'
+			identifier: class.notFound
+			count: 1
+			path: src/Resources/Payments/PaymentResource.php
+
+		-
+			message: '#^Parameter \$schema of method CodeWithDiki\\PaymentModule\\Resources\\Payments\\PaymentResource\:\:form\(\) has invalid type Filament\\Schemas\\Schema\.$#'
+			identifier: class.notFound
+			count: 1
+			path: src/Resources/Payments/PaymentResource.php
+
+		-
+			message: '#^Parameter \$schema of method CodeWithDiki\\PaymentModule\\Resources\\Payments\\PaymentResource\:\:infolist\(\) has invalid type Filament\\Schemas\\Schema\.$#'
+			identifier: class.notFound
+			count: 1
+			path: src/Resources/Payments/PaymentResource.php
+
+		-
+			message: '#^Call to method components\(\) on an unknown class Filament\\Schemas\\Schema\.$#'
+			identifier: class.notFound
+			count: 1
+			path: src/Resources/Payments/Schemas/PaymentForm.php
+
+		-
+			message: '#^Method CodeWithDiki\\PaymentModule\\Resources\\Payments\\Schemas\\PaymentForm\:\:configure\(\) has invalid return type Filament\\Schemas\\Schema\.$#'
+			identifier: class.notFound
+			count: 1
+			path: src/Resources/Payments/Schemas/PaymentForm.php
+
+		-
+			message: '#^Parameter \$schema of method CodeWithDiki\\PaymentModule\\Resources\\Payments\\Schemas\\PaymentForm\:\:configure\(\) has invalid type Filament\\Schemas\\Schema\.$#'
+			identifier: class.notFound
+			count: 1
+			path: src/Resources/Payments/Schemas/PaymentForm.php
+
+		-
+			message: '#^Call to method components\(\) on an unknown class Filament\\Schemas\\Schema\.$#'
+			identifier: class.notFound
+			count: 1
+			path: src/Resources/Payments/Schemas/PaymentInfolist.php
+
+		-
+			message: '#^Method CodeWithDiki\\PaymentModule\\Resources\\Payments\\Schemas\\PaymentInfolist\:\:configure\(\) has invalid return type Filament\\Schemas\\Schema\.$#'
+			identifier: class.notFound
+			count: 1
+			path: src/Resources/Payments/Schemas/PaymentInfolist.php
+
+		-
+			message: '#^Parameter \$schema of method CodeWithDiki\\PaymentModule\\Resources\\Payments\\Schemas\\PaymentInfolist\:\:configure\(\) has invalid type Filament\\Schemas\\Schema\.$#'
+			identifier: class.notFound
+			count: 1
+			path: src/Resources/Payments/Schemas/PaymentInfolist.php
+
+		-
+			message: '#^Call to an undefined method Filament\\Tables\\Table\:\:recordActions\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: src/Resources/Payments/Tables/PaymentsTable.php
+
+		-
+			message: '#^Call to static method make\(\) on an unknown class Filament\\Actions\\BulkActionGroup\.$#'
+			identifier: class.notFound
+			count: 1
+			path: src/Resources/Payments/Tables/PaymentsTable.php

@@ -10,6 +10,7 @@ use CodeWithDiki\PaymentModule\Supports\PaymentMethod\Doku;
 use CodeWithDiki\PaymentModule\Supports\PaymentMethod\Flip;
 use CodeWithDiki\PaymentModule\Supports\PaymentMethod\Midtrans;
 use CodeWithDiki\PaymentModule\Supports\PaymentMethod\Offline;
+use CodeWithDiki\PaymentModule\Supports\PaymentMethod\Paypal;
 use CodeWithDiki\PaymentModule\Supports\PaymentMethod\Stripe;
 use CodeWithDiki\PaymentModule\Supports\PaymentMethod\Xendit;
 
@@ -21,6 +22,7 @@ enum PaymentVendor: string
     case Xendit = 'Xendit';
     case Doku = 'Doku';
     case Flip = 'Flip';
+    case Paypal = 'Paypal';
 
     public function getPaymentProcessorClass(): string
     {
@@ -31,6 +33,7 @@ enum PaymentVendor: string
             self::Xendit => Xendit::class,
             self::Doku => Doku::class,
             self::Flip => Flip::class,
+            self::Paypal => Paypal::class,
         };
     }
 

@@ -4,7 +4,7 @@ Membangun sistem pembayaran dari nol di setiap proyek Laravel itu melelahkan. Ka
 
 Package ini adalah lapisan abstraksi di atas berbagai payment gateway. Kamu cukup panggil `PaymentModule::createPayment()`, dan semua proses di belakangnya — mulai dari charge ke gateway, menyimpan response, sampai men-dispatch event — ditangani secara otomatis. Arsitektur **event-driven** yang digunakan juga memastikan kamu tetap bisa menyesuaikan perilaku di setiap titik tanpa menyentuh kode inti package.
 
-Saat ini mendukung **Midtrans** (GoPay, ShopeePay, QRIS), **Stripe** (Checkout Session), **Xendit** (Virtual Account, e-wallet, QRIS), **DOKU** (SNAP Direct API: Virtual Account, e-wallet, QRIS), dan **Offline** secara bawaan, dengan panel admin berbasis **Filament** yang siap pakai. Selain menerima pembayaran, package ini juga mendukung **disbursement** (kirim dana ke rekening pihak ketiga) via **Midtrans Payouts (Iris)**, **Xendit Disbursement**, dan **Kirim DOKU**.
+Saat ini mendukung **Midtrans** (GoPay, ShopeePay, QRIS), **Stripe** (Checkout Session), **Xendit** (Virtual Account, e-wallet, QRIS), **DOKU** (SNAP Direct API: Virtual Account, e-wallet, QRIS), **PayPal** (PayPal Wallet, kartu kredit/debit), dan **Offline** secara bawaan, dengan panel admin berbasis **Filament** yang siap pakai. Selain menerima pembayaran, package ini juga mendukung **disbursement** (kirim dana ke rekening pihak ketiga) via **Midtrans Payouts (Iris)**, **Xendit Disbursement**, dan **Kirim DOKU**.
 
 Setiap payment method bisa dikenakan **fee otomatis** (flat + persentase) yang ditambahkan ke tagihan pelanggan.
 
@@ -261,6 +261,17 @@ return [
     'doku_sender_personal_id_type' => env('DOKU_SENDER_PERSONAL_ID_TYPE', 'KTP'),
     'doku_sender_country_code'     => env('DOKU_SENDER_COUNTRY_CODE', 'ID'),
 
+    // PayPal
+    'paypal_client_id'     => env('PAYPAL_CLIENT_ID', ''),
+    'paypal_client_secret' => env('PAYPAL_CLIENT_SECRET', ''),
+    // Webhook ID dari dashboard PayPal Developer → Webhooks
+    'paypal_webhook_id'    => env('PAYPAL_WEBHOOK_ID', ''),
+    'paypal_is_production' => env('PAYPAL_IS_PRODUCTION', false),
+    'paypal_currency'      => env('PAYPAL_CURRENCY', 'USD'),
+    // {payment_code} akan diganti dengan payment code transaksi
+    'paypal_return_url'    => env('PAYPAL_RETURN_URL', ''),
+    'paypal_cancel_url'    => env('PAYPAL_CANCEL_URL', ''),
+
     // Webhook
     'webhook' => [
         'prefix'             => 'webhooks',
@@ -311,6 +322,14 @@ DOKU_SENDER_PHONE=628111111111
 DOKU_SENDER_PERSONAL_ID=3175000000000001
 DOKU_SENDER_PERSONAL_ID_TYPE=KTP
 DOKU_SENDER_COUNTRY_CODE=ID
+
+PAYPAL_CLIENT_ID=your-client-id
+PAYPAL_CLIENT_SECRET=your-client-secret
+PAYPAL_WEBHOOK_ID=your-webhook-id
+PAYPAL_IS_PRODUCTION=false
+PAYPAL_CURRENCY=USD
+PAYPAL_RETURN_URL="https://domain-kamu.com/payments/{payment_code}/success"
+PAYPAL_CANCEL_URL="https://domain-kamu.com/payments/{payment_code}/cancel"
 ```
 
 > **DOKU memakai dua signature sekaligus.** Access token B2B ditandatangani **asimetris** (SHA256withRSA) memakai `DOKU_PRIVATE_KEY`, sedangkan setiap request transaksional ditandatangani **simetris** (HMAC-SHA512) memakai `DOKU_CLIENT_SECRET`. Generate keypair-nya dengan `openssl genrsa -out private.key 2048` lalu `openssl rsa -in private.key -pubout -out public.pem`, dan upload `public.pem` ke dashboard DOKU.
@@ -377,6 +396,7 @@ PaymentModule::createPaymentMethod(new PaymentMethodData(
 | `Stripe` | `card`, `link`, `alipay`, `wechat_pay` |
 | `Xendit` | `BCA`, `BNI`, `BRI`, `MANDIRI`, `PERMATA`, `BSI` (Virtual Account); `ID_OVO`, `ID_DANA`, `ID_LINKAJA`, `ID_SHOPEEPAY` (e-wallet); `QRIS` |
 | `Doku` | `VIRTUAL_ACCOUNT_BCA`, `VIRTUAL_ACCOUNT_BNI`, `VIRTUAL_ACCOUNT_BRI`, `VIRTUAL_ACCOUNT_BANK_MANDIRI`, `VIRTUAL_ACCOUNT_BANK_PERMATA`, `VIRTUAL_ACCOUNT_BANK_CIMB`, `VIRTUAL_ACCOUNT_BANK_DANAMON`, `VIRTUAL_ACCOUNT_BSI`, `VIRTUAL_ACCOUNT_BNC`, `VIRTUAL_ACCOUNT_BTN`, `VIRTUAL_ACCOUNT_MAYBANK`, `VIRTUAL_ACCOUNT_SINARMAS`, `VIRTUAL_ACCOUNT_BSS`, `VIRTUAL_ACCOUNT_DOKU` (Virtual Account); `EMONEY_DANA_SNAP`, `EMONEY_SHOPEE_PAY_SNAP` (e-wallet); `QRIS` |
+| `Paypal` | `paypal` (PayPal Wallet), `card` (Credit / Debit Card) |
 | `Offline` | `bank_transfer`, `cstore`, `offline`, `offline_qris` |
 
 > Channel `permata`, `bca`, `bni`, `bri`, `bsi`, dan `mandiri` diproses sebagai **bank transfer** via Midtrans.
@@ -650,7 +670,7 @@ Ubah prefix atau hapus middleware CSRF via config:
 ],
 ```
 
-Package mendaftarkan tujuh profil webhook-client secara otomatis: `payment-module-midtrans`, `payment-module-midtrans-payout`, `payment-module-stripe`, `payment-module-xendit`, `payment-module-xendit-disbursement`, `payment-module-doku`, dan `payment-module-doku-disbursement`. Profil milik aplikasimu sendiri di `config/webhook-client.php` tetap dipertahankan (profil tanpa `process_webhook_job` diabaikan karena tidak valid). Webhook lama otomatis dibersihkan oleh webhook-client setelah 30 hari (atur via config `webhook-client.delete_after_days` + jadwalkan `php artisan model:prune`).
+Package mendaftarkan delapan profil webhook-client secara otomatis: `payment-module-midtrans`, `payment-module-midtrans-payout`, `payment-module-stripe`, `payment-module-xendit`, `payment-module-xendit-disbursement`, `payment-module-doku`, `payment-module-doku-disbursement`, dan `payment-module-paypal`. Profil milik aplikasimu sendiri di `config/webhook-client.php` tetap dipertahankan (profil tanpa `process_webhook_job` diabaikan karena tidak valid). Webhook lama otomatis dibersihkan oleh webhook-client setelah 30 hari (atur via config `webhook-client.delete_after_days` + jadwalkan `php artisan model:prune`).
 
 ---
 
@@ -698,6 +718,34 @@ Untuk Checkout, `Client-Id` di header juga dicocokkan dengan `DOKU_CLIENT_ID`: n
 4. Memanggil `setPaymentStatus()`.
 
 > **Catatan integrasi.** Dokumentasi DOKU menyertakan *access token* di dalam string yang ditandatangani untuk SNAP, tapi tidak menjelaskan token mana yang mereka pakai saat menandatangani notifikasi **ke** kita. Validator karenanya mencoba access token B2B yang sedang di-cache dan juga token kosong — keduanya tetap memerlukan client secret, jadi ini tidak melemahkan verifikasi. Konfirmasikan perilaku sebenarnya terhadap sandbox DOKU saat integration testing, lalu hapus kandidat yang tidak terpakai di `DokuSignatureValidator`.
+
+---
+
+## Webhook PayPal
+
+Route webhook PayPal didaftarkan otomatis. Dengan konfigurasi default, endpoint-nya:
+
+```
+POST https://domain-kamu.com/webhooks/paypal
+```
+
+Daftarkan URL tersebut di [PayPal Developer Dashboard → Webhooks](https://developer.paypal.com/dashboard/webhooks), lalu salin **Webhook ID** ke env `PAYPAL_WEBHOOK_ID`.
+
+Tidak seperti vendor lain, PayPal tidak memakai shared secret atau HMAC sederhana. `PaypalSignatureValidator` memverifikasi setiap event **server-side** via `POST /v1/notifications/verify-webhook-signature` — mengirim header `PAYPAL-AUTH-ALGO`, `PAYPAL-CERT-URL`, `PAYPAL-TRANSMISSION-ID`, `PAYPAL-TRANSMISSION-SIG`, `PAYPAL-TRANSMISSION-TIME`, dan `webhook_id` ke PayPal, yang membalas `verification_status: SUCCESS` atau `FAILURE`. Bila `PAYPAL_WEBHOOK_ID` belum dikonfigurasi, semua callback ditolak.
+
+`ProcessPaypalWebhookJob`:
+1. Memetakan event ke `PaymentStatus` (`PAYMENT.CAPTURE.COMPLETED`/`CHECKOUT.ORDER.APPROVED` → `PAID`, `DENIED`/`REFUNDED`/`REVERSED` → `FAILED`)
+2. Mencari transaksi via `purchase_units[0].reference_id` (berisi `payment_code`)
+3. Memanggil `setPaymentStatus()`
+
+Event yang perlu diaktifkan di dashboard PayPal:
+- `PAYMENT.CAPTURE.COMPLETED`
+- `PAYMENT.CAPTURE.DENIED`
+- `PAYMENT.CAPTURE.REFUNDED`
+- `PAYMENT.CAPTURE.REVERSED`
+- `CHECKOUT.ORDER.APPROVED`
+
+Untuk pengujian lokal, kamu bisa memakai [PayPal Webhooks Simulator](https://developer.paypal.com/dashboard/webhooksSimulator) di dashboard Developer PayPal.
 
 ---
 
@@ -858,7 +906,7 @@ Event yang tersedia untuk di-listen: `DisbursementCreated`, `DisbursementGateway
 
 Karena package ini menangani uang, beberapa proteksi diterapkan secara default (sejak v1.3.0):
 
-- **Signing secret wajib terisi.** Semua signature validator (Midtrans, Midtrans Payout, Stripe, Xendit, DOKU) menolak callback bila secret/token-nya belum dikonfigurasi — mencegah pemalsuan webhook saat env masih kosong. Pastikan `MIDTRANS_SERVER_KEY`, `MIDTRANS_IRIS_MERCHANT_KEY`, `STRIPE_WEBHOOK_SECRET`, `XENDIT_WEBHOOK_TOKEN`, dan `DOKU_CLIENT_SECRET` terisi di production.
+- **Signing secret wajib terisi.** Semua signature validator (Midtrans, Midtrans Payout, Stripe, Xendit, DOKU, PayPal) menolak callback bila secret/token-nya belum dikonfigurasi — mencegah pemalsuan webhook saat env masih kosong. Pastikan `MIDTRANS_SERVER_KEY`, `MIDTRANS_IRIS_MERCHANT_KEY`, `STRIPE_WEBHOOK_SECRET`, `XENDIT_WEBHOOK_TOKEN`, `DOKU_CLIENT_SECRET`, dan `PAYPAL_WEBHOOK_ID` terisi di production.
 - **Verifikasi nominal.** Notifikasi pembayaran `PAID` hanya diproses jika nominal yang dilaporkan gateway cocok dengan `total_amount` yang diharapkan. Nominal yang tidak cocok dicatat ke log dan diabaikan.
 - **Proteksi replay/idempoten.** Pembayaran/disbursement yang sudah berada di status terminal (`paid`/`failed`, `completed`/`failed`/`rejected`) tidak diproses ulang — webhook yang diulang tidak men-dispatch event ganda.
 - **Maker-approver (separation of duties).** Pengguna yang membuat disbursement tidak bisa menyetujui payout-nya sendiri; percobaan demikian melempar `DisbursementApprovalDeniedException`. Kolom `created_by`/`approved_by` mencatat jejaknya (terisi otomatis dari `auth()->id()` bila ada konteks autentikasi).
@@ -924,7 +972,7 @@ if ($payment->canBeConfirmedManually()) {
 
 Ini adalah fitur paling fleksibel dari package ini. Kamu bisa menambahkan integrasi ke payment gateway manapun — Doku, Flip, iPaymu, dll. — tanpa mengubah satu baris pun dari kode inti package. Caranya adalah dengan membuat **enum PHP kustom** dan **model `PaymentMethod` kustom**, lalu mengarahkan config ke keduanya.
 
-> **Catatan:** Midtrans, Stripe, **Xendit**, dan **DOKU** kini sudah menjadi vendor **bawaan** (tidak perlu langkah di bawah). Contoh `Xendit` berikut tetap dipakai sebagai ilustrasi pola umum — terapkan pola yang sama untuk gateway lain yang belum didukung, misalnya Flip atau iPaymu.
+> **Catatan:** Midtrans, Stripe, **Xendit**, **DOKU**, dan **PayPal** kini sudah menjadi vendor **bawaan** (tidak perlu langkah di bawah). Contoh `Xendit` berikut tetap dipakai sebagai ilustrasi pola umum — terapkan pola yang sama untuk gateway lain yang belum didukung, misalnya Flip atau iPaymu.
 
 Kunci dari mekanisme ini ada di sini: model `PaymentMethod` bawaan membaca `vendor_enum_class` dari config untuk menentukan enum mana yang dipakai sebagai cast kolom `vendor`. Ini berarti kamu bisa mengganti enum-nya tanpa menyentuh package sama sekali.
 

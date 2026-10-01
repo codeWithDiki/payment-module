@@ -10,6 +10,7 @@ Setiap rilis ditandai dengan git tag `vX.Y.Z` (mis. `v1.3.0`).
 
 ### Added
 
+- **PayPal** — vendor baru `PaymentVendor::Paypal`. Payment processor via Orders API (OAuth2, create order dengan payer-action redirect). Channel: `paypal` (PayPal Wallet) dan `card` (credit/debit). Webhook diverifikasi server-side lewat `/v1/notifications/verify-webhook-signature` dan terdaftar di `POST /webhooks/paypal`.
 - Aksi **Confirm Payment** di resource Payments untuk menyelesaikan pembayaran offline secara manual, lengkap dengan konfirmasi dan notifikasi. Hanya muncul untuk payment `pending` bervendor `Offline`.
 - `Payment::canBeConfirmedManually()` — predikat kelayakan konfirmasi manual, ditaruh di model agar bisa dipakai ulang di luar Filament.
 - Trait `Resources\Concerns\HasDefaultTableSort` — semua tabel Filament package kini diurutkan descending (terbaru di atas), dengan `$defaultSortColumn` yang bisa di-override per tabel.

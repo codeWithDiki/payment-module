@@ -66,6 +66,7 @@ class PaymentModuleServiceProvider extends PackageServiceProvider
                 Route::webhooks('doku/disbursement', 'payment-module-doku-disbursement');
                 Route::webhooks('flip', 'payment-module-flip');
                 Route::webhooks('flip/disbursement', 'payment-module-flip-disbursement');
+                Route::webhooks('paypal', 'payment-module-paypal');
             });
     }
 
@@ -148,6 +149,14 @@ class PaymentModuleServiceProvider extends PackageServiceProvider
                     'signature_header_name' => 'X-Flip-Signature',
                     'signature_validator' => Webhooks\SignatureValidators\FlipSignatureValidator::class,
                     'process_webhook_job' => Webhooks\Jobs\ProcessFlipDisbursementWebhookJob::class,
+                ]),
+                // PayPal uses a custom server-side verification API (POST /v1/notifications/verify-webhook-signature),
+                // signature_header_name is required by spatie/webhook-client but not actually checked.
+                array_merge($defaults, [
+                    'name' => 'payment-module-paypal',
+                    'signature_header_name' => 'PAYPAL-TRANSMISSION-SIG',
+                    'signature_validator' => Webhooks\SignatureValidators\PaypalSignatureValidator::class,
+                    'process_webhook_job' => Webhooks\Jobs\ProcessPaypalWebhookJob::class,
                 ]),
             ]
         ));

@@ -79,6 +79,15 @@ return [
     'doku_sender_personal_id_type' => env('DOKU_SENDER_PERSONAL_ID_TYPE', 'KTP'),
     'doku_sender_country_code' => env('DOKU_SENDER_COUNTRY_CODE', 'ID'),
 
+    /** PayPal Config */
+    'paypal_client_id' => env('PAYPAL_CLIENT_ID', ''),
+    'paypal_client_secret' => env('PAYPAL_CLIENT_SECRET', ''),
+    'paypal_webhook_id' => env('PAYPAL_WEBHOOK_ID', ''),
+    'paypal_is_production' => env('PAYPAL_IS_PRODUCTION', false),
+    'paypal_currency' => env('PAYPAL_CURRENCY', 'USD'),
+    'paypal_return_url' => env('PAYPAL_RETURN_URL', ''),
+    'paypal_cancel_url' => env('PAYPAL_CANCEL_URL', ''),
+
     /** Flip for Business Config */
     'flip_secret_key' => env('FLIP_SECRET_KEY', ''),
     // Validation token from the Flip dashboard, included as token_validation in every callback
