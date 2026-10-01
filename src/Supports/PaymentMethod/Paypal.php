@@ -9,14 +9,12 @@ use CodeWithDiki\PaymentModule\Models\Payment;
 use Illuminate\Http\Client\PendingRequest;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Http;
+use RuntimeException;
 
 class Paypal implements Contracts\PaymentProcessor
 {
     use Concerns\InteractsWithPaymentProcessor;
-
-    protected const SANDBOX_BASE_URL = 'https://api-m.sandbox.paypal.com';
-
-    protected const PRODUCTION_BASE_URL = 'https://api-m.paypal.com';
+    use Concerns\ResolvesPaypalCredentials;
 
     public function getChannels(): Collection
     {
@@ -28,7 +26,7 @@ class Paypal implements Contracts\PaymentProcessor
 
     public function processPayment(Payment $payment): void
     {
-        $accessToken = $this->getAccessToken();
+        $accessToken = $this->paypalAccessToken();
 
         /** @var array{intent: string, purchase_units: array, payment_source: array} $payload */
         $payload = [
@@ -52,12 +50,16 @@ class Paypal implements Contracts\PaymentProcessor
             ],
         ];
 
-        $response = $this->client($accessToken)->post('/v2/checkout/orders', $payload);
+        $response = $this->client($accessToken)->post('/v2/checkout/orders', $payload)->throw();
         $body = $response->json();
+
+        if (! $body) {
+            throw new RuntimeException('PayPal returned an empty response body when creating the order.');
+        }
 
         $payment->update([
             'payment_payload' => $payload,
-            'payment_response' => $body ?? [],
+            'payment_response' => $body,
         ]);
 
         PaymentGatewayProcessed::dispatch($payment);
@@ -87,38 +89,11 @@ class Paypal implements Contracts\PaymentProcessor
         );
     }
 
-    protected function getAccessToken(): string
-    {
-        $baseUrl = $this->baseUrl();
-
-        $response = Http::baseUrl($baseUrl)
-            ->withBasicAuth(
-                config('payment-module.paypal_client_id'),
-                config('payment-module.paypal_client_secret')
-            )
-            ->asForm()
-            ->post('/v1/oauth2/token', [
-                'grant_type' => 'client_credentials',
-            ]);
-
-        /** @var string|null $token */
-        $token = $response->json('access_token');
-
-        return $token ?? '';
-    }
-
     protected function client(string $accessToken): PendingRequest
     {
-        return Http::baseUrl($this->baseUrl())
+        return Http::baseUrl($this->paypalBaseUrl())
             ->withToken($accessToken)
             ->acceptJson()
             ->contentType('application/json');
-    }
-
-    protected function baseUrl(): string
-    {
-        return config('payment-module.paypal_is_production', false)
-            ? self::PRODUCTION_BASE_URL
-            : self::SANDBOX_BASE_URL;
     }
 }

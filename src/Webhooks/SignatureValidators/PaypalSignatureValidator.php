@@ -2,10 +2,12 @@
 
 namespace CodeWithDiki\PaymentModule\Webhooks\SignatureValidators;
 
+use CodeWithDiki\PaymentModule\Supports\PaymentMethod\Concerns\ResolvesPaypalCredentials;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
 use Spatie\WebhookClient\SignatureValidator\SignatureValidator;
 use Spatie\WebhookClient\WebhookConfig;
+use Throwable;
 
 /**
  * Verifies PayPal webhook signatures by calling PayPal's verification API.
@@ -18,6 +20,8 @@ use Spatie\WebhookClient\WebhookConfig;
  */
 class PaypalSignatureValidator implements SignatureValidator
 {
+    use ResolvesPaypalCredentials;
+
     public function isValid(Request $request, WebhookConfig $config): bool
     {
         // ponytail: $config unused — PayPal API verifies via webhook_id, not a header
@@ -27,25 +31,10 @@ class PaypalSignatureValidator implements SignatureValidator
             return false;
         }
 
-        $baseUrl = config('payment-module.paypal_is_production', false)
-            ? 'https://api-m.paypal.com'
-            : 'https://api-m.sandbox.paypal.com';
-
-        // Get an access token for the verification call
-        $tokenResponse = Http::baseUrl($baseUrl)
-            ->withBasicAuth(
-                config('payment-module.paypal_client_id'),
-                config('payment-module.paypal_client_secret')
-            )
-            ->asForm()
-            ->post('/v1/oauth2/token', [
-                'grant_type' => 'client_credentials',
-            ]);
-
-        /** @var string|null $accessToken */
-        $accessToken = $tokenResponse->json('access_token');
-
-        if (! $accessToken) {
+        try {
+            $accessToken = $this->paypalAccessToken();
+        } catch (Throwable) {
+            // No credentials: reject rather than let the webhook through unverified.
             return false;
         }
 
@@ -54,7 +43,7 @@ class PaypalSignatureValidator implements SignatureValidator
         /** @var array|null $webhookEvent */
         $webhookEvent = json_decode($request->getContent(), true);
 
-        $verification = Http::baseUrl($baseUrl)
+        $verification = Http::baseUrl($this->paypalBaseUrl())
             ->withToken($accessToken)
             ->acceptJson()
             ->post('/v1/notifications/verify-webhook-signature', [
