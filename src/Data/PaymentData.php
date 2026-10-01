@@ -12,7 +12,7 @@ class PaymentData extends Data
         public Model $paymentable,
         public int $payment_method_id,
         public string $payment_code,
-        public int $amount,
+        public int|float $amount,
         public PaymentStatus $status,
         public ?string $customer_name = null,
         public ?string $customer_email = null,
