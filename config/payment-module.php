@@ -87,6 +87,7 @@ return [
     'paypal_currency' => env('PAYPAL_CURRENCY', 'USD'),
     'paypal_return_url' => env('PAYPAL_RETURN_URL', ''),
     'paypal_cancel_url' => env('PAYPAL_CANCEL_URL', ''),
+    'paypal_brand_name' => env('PAYPAL_BRAND_NAME', ''),
 
     /** Flip for Business Config */
     'flip_secret_key' => env('FLIP_SECRET_KEY', ''),

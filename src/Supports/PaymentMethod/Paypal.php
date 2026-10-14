@@ -40,6 +40,9 @@ class Paypal implements Contracts\PaymentProcessor
                     ],
                 ],
             ],
+            "application_context" => [
+                "brand_name" => config('payment-module.paypal_brand_name', null),
+            ],
             'payment_source' => [
                 'paypal' => [
                     'experience_context' => array_filter([
